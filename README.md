@@ -1,6 +1,10 @@
-# reqwest-dll
+# reqwest-rs-labview
 
-A DLL wrapper around the Rust reqwest library that can be called from LabVIEW.
+A LabVIEW HTTP client that calls a DLL-wrapper around the Rust reqwest library.
+
+## Roadmap
+
+- See [./docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Building
 
