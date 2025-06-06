@@ -61,7 +61,7 @@ jobs:
         toolchain: stable
         target: ${{ matrix.target }}
         
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Build
       run: |
@@ -93,7 +93,7 @@ jobs:
       
     - name: Upload artifact
       if: ${{ matrix.runs-on != 'macos-latest' }}
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: shared-library-${{ matrix.target }}
         if-no-files-found: error
@@ -102,7 +102,7 @@ jobs:
           
     - name: Upload MacOS Framework artifact
       if: ${{ matrix.runs-on == 'macos-latest' }}
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: shared-library-${{ matrix.target }}
         if-no-files-found: error
