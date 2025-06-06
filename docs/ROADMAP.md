@@ -36,4 +36,33 @@ Our async functionality is powerful but currently limited to `GET` requests.
 
 ## Priorities
 
-- [ ] **Timeouts**. Adding client-level timeout configuration would immediately make the library much more robust and safe to use in a production environment.
+This plan is organized into phases. Each phase builds on the previous one.
+
+### Phase 1: Foundational Stability & Flexibility
+*   **Goal:** Make the library robust and flexible for common use cases.
+*   **Tasks:**
+    - [ ] **Implement Timeouts:** Create a new client constructor that accepts timeout values (connect, and total request). This is the highest priority.
+    - [ ] **Implement Reusable Headers:** Create a "Header Map" object that can be built and passed to any request.
+    - [ ] **Update Request Functions:** Modify all request functions (`get`, `post_json`, etc.) to accept an optional Header Map pointer. This will deprecate `reqwest_get_with_header`.
+    - [ ] **Implement Default Headers on Client:** Enhance the client constructor to also accept a Header Map for default headers.
+
+### Phase 2: Rich Response Objects (Major API Improvement)
+*   **Goal:** Provide users with access to crucial response data like status codes and headers without needing to make extra requests.
+*   **Note:** This will be a **breaking change** to the API, as function return types will change.
+*   **Tasks:**
+    - [ ] **Introduce a `Response` Object:** Instead of returning raw body bytes, functions will return a pointer to an opaque `Response` object.
+    - [ ] **Create `Response` Accessors:** Add functions to get data from the response object (status, headers, body) and to free it.
+    - [ ] **Refactor All Request Functions:** Update all synchronous and asynchronous functions to return this new `Response` object.
+
+### Phase 3: Expand Asynchronous Operations
+*   **Goal:** Make the powerful asynchronous capabilities available for all common HTTP methods.
+*   **Tasks:**
+    - [ ] **Async POST, PUT, DELETE:** Create asynchronous, non-blocking versions of `POST`, `PUT`, and `DELETE` requests.
+
+### Phase 4: Advanced Features & Ergonomics
+*   **Goal:** Add support for more complex use cases and provide quality-of-life improvements.
+*   **Tasks:**
+    - [ ] **Authentication Helpers:** Add convenience functions for Basic and Bearer token authentication.
+    - [ ] **Multipart Forms:** Implement `multipart/form-data` requests.
+    - [ ] **Query Parameter Builder:** Add a structured way to add URL query parameters.
+    - [ ] **Proxy & Redirect Configuration:** Expose client-level settings for proxies and redirect policies.
