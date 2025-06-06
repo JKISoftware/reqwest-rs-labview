@@ -83,11 +83,10 @@ jobs:
       run: |
         cd target/${{ matrix.target }}/${{ env.BUILD_TYPE }}
         ls -la
-        for file in *.${{ matrix.shared-lib-extension }}; do
-          if [ -f "$file" ]; then
-            mv "$file" ${{ env.SHARED_LIBRARY_NAME }}_${{ matrix.bitness }}.${{ matrix.shared-lib-extension }}
-          fi
-        done
+        # Only rename libreqwest.so to avoid trying to rename already renamed files
+        if [ -f "libreqwest.${{ matrix.shared-lib-extension }}" ]; then
+          mv "libreqwest.${{ matrix.shared-lib-extension }}" ${{ env.SHARED_LIBRARY_NAME }}_${{ matrix.bitness }}.${{ matrix.shared-lib-extension }}
+        fi
     
     - name: Bundle MacOS Framework
       if: ${{ matrix.runs-on == 'macos-latest' }}
