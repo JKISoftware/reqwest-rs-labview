@@ -50,18 +50,18 @@ This plan is organized into phases. Each phase builds on the previous one.
 *   **Approach:** We will implement a **builder pattern** for client creation and delete all blocking functions.
 *   **Tasks:**
     - [ ] **Implement Client Builder:**
-        - `reqwest_client_builder_new()`
-        - `reqwest_client_builder_timeout(builder, connect_secs, request_secs)`
-        - `reqwest_client_builder_danger_accept_invalid_certs(builder, accept)`
-        - `reqwest_client_builder_default_headers(builder, headers)` (Depends on Header Map).
-        - `reqwest_client_builder_build(builder)`.
+        - `client_builder_new()`
+        - `client_builder_timeout(builder, connect_secs, request_secs)`
+        - `client_builder_danger_accept_invalid_certs(builder, accept)`
+        - `client_builder_default_headers(builder, headers)` (Depends on Header Map).
+        - `client_builder_build(builder)`.
     - [ ] **Implement Reusable Header Map:**
-        - `reqwest_headers_new()`
-        - `reqwest_headers_add(map, key, value)`
-        - `reqwest_headers_free(map)`
+        - `headers_new()`
+        - `headers_add(map, key, value)`
+        - `headers_free(map)`
     - [ ] **Cull Synchronous Functions:**
         - Remove all blocking functions (`reqwest_get`, `reqwest_post_json`, etc.).
-        - Refactor `reqwest_async_get_start` to accept an optional Header Map pointer for per-request headers.
+        - Refactor `async_get_start` to accept an optional Header Map pointer for per-request headers.
     - [ ] **Update All Tests:**
         - Remove all tests for synchronous functions.
         - Update the remaining async tests to use the new client builder and header map functionality.
@@ -70,18 +70,18 @@ This plan is organized into phases. Each phase builds on the previous one.
 *   **Goal:** Provide users with access to crucial response data like status codes and headers from completed async calls.
 *   **Tasks:**
     - [ ] **Introduce a `Response` Object:** This object will encapsulate the final state of a request (success or error).
-    - [ ] **Refactor Async Result Function:** The `reqwest_async_get_response` function will be **replaced** by `reqwest_async_take_result(request_id)`, which returns a pointer to the `Response` object.
+    - [ ] **Refactor Async Result Function:** The `async_get_response` function will be **replaced** by `async_take_result(request_id)`, which returns a pointer to the `Response` object.
     - [ ] **Create `Response` Accessors:**
-        - `reqwest_response_status(response)`
-        - `reqwest_response_headers(response)` (returns a read-only Header Map)
-        - `reqwest_response_body_copy(response, ...)`
-        - `reqwest_response_error_string_copy(response, ...)`
-        - `reqwest_response_free(response)`
+        - `response_status(response)`
+        - `response_headers(response)` (returns a read-only Header Map)
+        - `response_body_copy(response, ...)`
+        - `response_error_string_copy(response, ...)`
+        - `response_free(response)`
 
 ### Phase 3: Expand Asynchronous Operations
 *   **Goal:** Provide a full suite of asynchronous HTTP methods, as they are now the only methods available.
 *   **Tasks:**
-    - [ ] **Async POST, PUT, DELETE:** Create `reqwest_async_post_start`, `reqwest_async_put_start`, etc., supporting various body types (JSON, form, binary).
+    - [ ] **Async POST, PUT, DELETE:** Create `async_post_start`, `async_put_start`, etc., supporting various body types (JSON, form, binary).
 
 ### Phase 4: Advanced Features & Ergonomics
 *   **Goal:** Add support for more complex use cases and provide quality-of-life improvements.
