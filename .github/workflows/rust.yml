@@ -61,8 +61,8 @@ jobs:
     - name: Install dependencies for Linux
       if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl' }}
       run: |
-        apt-get update -y
-        apt-get install -y pkg-config libssl-dev
+        sudo apt-get update -y
+        sudo apt-get install -y pkg-config libssl-dev
 
     - name: Cache
       uses: actions/cache@v4
