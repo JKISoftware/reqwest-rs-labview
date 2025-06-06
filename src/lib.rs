@@ -1,7 +1,8 @@
 use libc::c_char;
 use std::{
     collections::HashMap,
-    ffi::{c_void, CStr, CString},
+    ffi::{c_void, CStr},
+    io::Write,
     ptr,
     sync::{Arc, Mutex, RwLock},
 };
@@ -22,7 +23,7 @@ struct RequestProgress {
     status: RequestStatus,
     total_bytes: Option<u64>,
     received_bytes: u64,
-    response_data: Option<String>,
+    response_data: Option<Vec<u8>>,
     error: Option<String>,
 }
 
@@ -35,16 +36,23 @@ enum RequestStatus {
     Cancelled,
 }
 
-// Helper function to convert string to C string pointer
-fn string_to_cstring_ptr(s: &str) -> *mut c_char {
-    let raw_string = match CString::new(s).unwrap().into_raw() {
-        ptr if ptr.is_null() => {
-            println!("Unable to allocate memory for string");
-            return CString::new("").unwrap().into_raw();
+// Helper function to copy bytes to a C-compatible buffer.
+// The caller is responsible for freeing the memory with `reqwest_free_memory`.
+fn bytes_to_c_ptr(data: &[u8]) -> *mut c_char {
+    let len = data.len();
+    unsafe {
+        let buffer = libc::malloc(len + 1); // +1 for null terminator for strings
+        if buffer.is_null() {
+            // In case of allocation failure, we can't do much.
+            // Returning a pointer to a static string is unsafe because the caller will try to free it.
+            // Returning null is the safest option.
+            return ptr::null_mut();
         }
-        ptr => ptr,
-    };
-    raw_string
+        ptr::copy_nonoverlapping(data.as_ptr(), buffer as *mut u8, len);
+        // Add null terminator for safety with C string functions
+        *(buffer as *mut u8).add(len) = 0;
+        buffer as *mut c_char
+    }
 }
 
 // Helper function to get next request ID
@@ -96,7 +104,9 @@ pub extern "C" fn reqwest_get(
 ) -> *mut c_char {
     if client_ptr.is_null() {
         println!("Client pointer is null");
-        return string_to_cstring_ptr("Error: Client pointer is null");
+        let err_msg = b"Error: Client pointer is null";
+        unsafe { *num_bytes = err_msg.len() as u32; }
+        return bytes_to_c_ptr(err_msg);
     }
     
     let (client, runtime) = unsafe { &*(client_ptr as *const (Client, tokio::runtime::Runtime)) };
@@ -104,31 +114,34 @@ pub extern "C" fn reqwest_get(
         Ok(s) => s,
         Err(_) => {
             println!("Invalid URL string");
-            return string_to_cstring_ptr("Error: Invalid URL string");
+            let err_msg = b"Error: Invalid URL string";
+            unsafe { *num_bytes = err_msg.len() as u32; }
+            return bytes_to_c_ptr(err_msg);
         }
     };
     
-    let response_text = match runtime.block_on(async {
+    let response_result = runtime.block_on(async {
         let response = match client.get(url_str).send().await {
             Ok(resp) => resp,
-            Err(e) => return format!("Error: {}", e),
+            Err(e) => return Err(format!("Error: {}", e)),
         };
         
-        match response.text().await {
-            Ok(text) => text,
-            Err(e) => format!("Error: {}", e),
+        match response.bytes().await {
+            Ok(bytes) => Ok(bytes.to_vec()),
+            Err(e) => Err(format!("Error: {}", e)),
         }
-    }) {
-        text => text,
-    };
-    
-    // Pass the length of the string back to the caller through the num_bytes pointer
-    let return_value_length = response_text.len() as u32;
-    unsafe {
-        *num_bytes = return_value_length;
+    });
+
+    match response_result {
+        Ok(data) => {
+            unsafe { *num_bytes = data.len() as u32; }
+            bytes_to_c_ptr(&data)
+        }
+        Err(e) => {
+            unsafe { *num_bytes = e.len() as u32; }
+            bytes_to_c_ptr(e.as_bytes())
+        }
     }
-    
-    string_to_cstring_ptr(&response_text)
 }
 
 // Make a POST request with a JSON body and return the response body as a string
@@ -141,7 +154,9 @@ pub extern "C" fn reqwest_post_json(
 ) -> *mut c_char {
     if client_ptr.is_null() {
         println!("Client pointer is null");
-        return string_to_cstring_ptr("Error: Client pointer is null");
+        let err_msg = b"Error: Client pointer is null";
+        unsafe { *num_bytes = err_msg.len() as u32; }
+        return bytes_to_c_ptr(err_msg);
     }
     
     let (client, runtime) = unsafe { &*(client_ptr as *const (Client, tokio::runtime::Runtime)) };
@@ -149,7 +164,9 @@ pub extern "C" fn reqwest_post_json(
         Ok(s) => s,
         Err(_) => {
             println!("Invalid URL string");
-            return string_to_cstring_ptr("Error: Invalid URL string");
+            let err_msg = b"Error: Invalid URL string";
+            unsafe { *num_bytes = err_msg.len() as u32; }
+            return bytes_to_c_ptr(err_msg);
         }
     };
     
@@ -157,11 +174,13 @@ pub extern "C" fn reqwest_post_json(
         Ok(s) => s,
         Err(_) => {
             println!("Invalid JSON string");
-            return string_to_cstring_ptr("Error: Invalid JSON string");
+            let err_msg = b"Error: Invalid JSON string";
+            unsafe { *num_bytes = err_msg.len() as u32; }
+            return bytes_to_c_ptr(err_msg);
         }
     };
     
-    let response_text = match runtime.block_on(async {
+    let response_result = runtime.block_on(async {
         let response = match client.post(url_str)
             .header("Content-Type", "application/json")
             .body(json_str.to_string())
@@ -169,24 +188,25 @@ pub extern "C" fn reqwest_post_json(
             .await 
         {
             Ok(resp) => resp,
-            Err(e) => return format!("Error: {}", e),
+            Err(e) => return Err(format!("Error: {}", e)),
         };
         
-        match response.text().await {
-            Ok(text) => text,
-            Err(e) => format!("Error: {}", e),
+        match response.bytes().await {
+            Ok(bytes) => Ok(bytes.to_vec()),
+            Err(e) => Err(format!("Error: {}", e)),
         }
-    }) {
-        text => text,
-    };
-    
-    // Pass the length of the string back to the caller through the num_bytes pointer
-    let return_value_length = response_text.len() as u32;
-    unsafe {
-        *num_bytes = return_value_length;
+    });
+
+    match response_result {
+        Ok(data) => {
+            unsafe { *num_bytes = data.len() as u32; }
+            bytes_to_c_ptr(&data)
+        }
+        Err(e) => {
+            unsafe { *num_bytes = e.len() as u32; }
+            bytes_to_c_ptr(e.as_bytes())
+        }
     }
-    
-    string_to_cstring_ptr(&response_text)
 }
 
 // Make a PUT request with a JSON body and return the response body as a string
@@ -199,7 +219,9 @@ pub extern "C" fn reqwest_put_json(
 ) -> *mut c_char {
     if client_ptr.is_null() {
         println!("Client pointer is null");
-        return string_to_cstring_ptr("Error: Client pointer is null");
+        let err_msg = b"Error: Client pointer is null";
+        unsafe { *num_bytes = err_msg.len() as u32; }
+        return bytes_to_c_ptr(err_msg);
     }
     
     let (client, runtime) = unsafe { &*(client_ptr as *const (Client, tokio::runtime::Runtime)) };
@@ -207,7 +229,9 @@ pub extern "C" fn reqwest_put_json(
         Ok(s) => s,
         Err(_) => {
             println!("Invalid URL string");
-            return string_to_cstring_ptr("Error: Invalid URL string");
+            let err_msg = b"Error: Invalid URL string";
+            unsafe { *num_bytes = err_msg.len() as u32; }
+            return bytes_to_c_ptr(err_msg);
         }
     };
     
@@ -215,11 +239,13 @@ pub extern "C" fn reqwest_put_json(
         Ok(s) => s,
         Err(_) => {
             println!("Invalid JSON string");
-            return string_to_cstring_ptr("Error: Invalid JSON string");
+            let err_msg = b"Error: Invalid JSON string";
+            unsafe { *num_bytes = err_msg.len() as u32; }
+            return bytes_to_c_ptr(err_msg);
         }
     };
     
-    let response_text = match runtime.block_on(async {
+    let response_result = runtime.block_on(async {
         let response = match client.put(url_str)
             .header("Content-Type", "application/json")
             .body(json_str.to_string())
@@ -227,24 +253,25 @@ pub extern "C" fn reqwest_put_json(
             .await 
         {
             Ok(resp) => resp,
-            Err(e) => return format!("Error: {}", e),
+            Err(e) => return Err(format!("Error: {}", e)),
         };
         
-        match response.text().await {
-            Ok(text) => text,
-            Err(e) => format!("Error: {}", e),
+        match response.bytes().await {
+            Ok(bytes) => Ok(bytes.to_vec()),
+            Err(e) => Err(format!("Error: {}", e)),
         }
-    }) {
-        text => text,
-    };
+    });
     
-    // Pass the length of the string back to the caller through the num_bytes pointer
-    let return_value_length = response_text.len() as u32;
-    unsafe {
-        *num_bytes = return_value_length;
+    match response_result {
+        Ok(data) => {
+            unsafe { *num_bytes = data.len() as u32; }
+            bytes_to_c_ptr(&data)
+        }
+        Err(e) => {
+            unsafe { *num_bytes = e.len() as u32; }
+            bytes_to_c_ptr(e.as_bytes())
+        }
     }
-    
-    string_to_cstring_ptr(&response_text)
 }
 
 // Make a DELETE request and return the response body as a string
@@ -256,7 +283,9 @@ pub extern "C" fn reqwest_delete(
 ) -> *mut c_char {
     if client_ptr.is_null() {
         println!("Client pointer is null");
-        return string_to_cstring_ptr("Error: Client pointer is null");
+        let err_msg = b"Error: Client pointer is null";
+        unsafe { *num_bytes = err_msg.len() as u32; }
+        return bytes_to_c_ptr(err_msg);
     }
     
     let (client, runtime) = unsafe { &*(client_ptr as *const (Client, tokio::runtime::Runtime)) };
@@ -264,31 +293,34 @@ pub extern "C" fn reqwest_delete(
         Ok(s) => s,
         Err(_) => {
             println!("Invalid URL string");
-            return string_to_cstring_ptr("Error: Invalid URL string");
+            let err_msg = b"Error: Invalid URL string";
+            unsafe { *num_bytes = err_msg.len() as u32; }
+            return bytes_to_c_ptr(err_msg);
         }
     };
     
-    let response_text = match runtime.block_on(async {
+    let response_result = runtime.block_on(async {
         let response = match client.delete(url_str).send().await {
             Ok(resp) => resp,
-            Err(e) => return format!("Error: {}", e),
+            Err(e) => return Err(format!("Error: {}", e)),
         };
         
-        match response.text().await {
-            Ok(text) => text,
-            Err(e) => format!("Error: {}", e),
+        match response.bytes().await {
+            Ok(bytes) => Ok(bytes.to_vec()),
+            Err(e) => Err(format!("Error: {}", e)),
         }
-    }) {
-        text => text,
-    };
+    });
     
-    // Pass the length of the string back to the caller through the num_bytes pointer
-    let return_value_length = response_text.len() as u32;
-    unsafe {
-        *num_bytes = return_value_length;
+    match response_result {
+        Ok(data) => {
+            unsafe { *num_bytes = data.len() as u32; }
+            bytes_to_c_ptr(&data)
+        }
+        Err(e) => {
+            unsafe { *num_bytes = e.len() as u32; }
+            bytes_to_c_ptr(e.as_bytes())
+        }
     }
-    
-    string_to_cstring_ptr(&response_text)
 }
 
 // Make a POST request with a form body and return the response body as a string
@@ -301,7 +333,9 @@ pub extern "C" fn reqwest_post_form(
 ) -> *mut c_char {
     if client_ptr.is_null() {
         println!("Client pointer is null");
-        return string_to_cstring_ptr("Error: Client pointer is null");
+        let err_msg = b"Error: Client pointer is null";
+        unsafe { *num_bytes = err_msg.len() as u32; }
+        return bytes_to_c_ptr(err_msg);
     }
     
     let (client, runtime) = unsafe { &*(client_ptr as *const (Client, tokio::runtime::Runtime)) };
@@ -309,7 +343,9 @@ pub extern "C" fn reqwest_post_form(
         Ok(s) => s,
         Err(_) => {
             println!("Invalid URL string");
-            return string_to_cstring_ptr("Error: Invalid URL string");
+            let err_msg = b"Error: Invalid URL string";
+            unsafe { *num_bytes = err_msg.len() as u32; }
+            return bytes_to_c_ptr(err_msg);
         }
     };
     
@@ -317,7 +353,9 @@ pub extern "C" fn reqwest_post_form(
         Ok(s) => s,
         Err(_) => {
             println!("Invalid form data string");
-            return string_to_cstring_ptr("Error: Invalid form data string");
+            let err_msg = b"Error: Invalid form data string";
+            unsafe { *num_bytes = err_msg.len() as u32; }
+            return bytes_to_c_ptr(err_msg);
         }
     };
     
@@ -332,31 +370,32 @@ pub extern "C" fn reqwest_post_form(
         })
         .collect();
     
-    let response_text = match runtime.block_on(async {
+    let response_result = runtime.block_on(async {
         let response = match client.post(url_str)
             .form(&form_data)
             .send()
             .await 
         {
             Ok(resp) => resp,
-            Err(e) => return format!("Error: {}", e),
+            Err(e) => return Err(format!("Error: {}", e)),
         };
         
-        match response.text().await {
-            Ok(text) => text,
-            Err(e) => format!("Error: {}", e),
+        match response.bytes().await {
+            Ok(bytes) => Ok(bytes.to_vec()),
+            Err(e) => Err(format!("Error: {}", e)),
         }
-    }) {
-        text => text,
-    };
+    });
     
-    // Pass the length of the string back to the caller through the num_bytes pointer
-    let return_value_length = response_text.len() as u32;
-    unsafe {
-        *num_bytes = return_value_length;
+    match response_result {
+        Ok(data) => {
+            unsafe { *num_bytes = data.len() as u32; }
+            bytes_to_c_ptr(&data)
+        }
+        Err(e) => {
+            unsafe { *num_bytes = e.len() as u32; }
+            bytes_to_c_ptr(e.as_bytes())
+        }
     }
-    
-    string_to_cstring_ptr(&response_text)
 }
 
 // Get HTTP status code from a response
@@ -402,7 +441,9 @@ pub extern "C" fn reqwest_get_with_header(
 ) -> *mut c_char {
     if client_ptr.is_null() {
         println!("Client pointer is null");
-        return string_to_cstring_ptr("Error: Client pointer is null");
+        let err_msg = b"Error: Client pointer is null";
+        unsafe { *num_bytes = err_msg.len() as u32; }
+        return bytes_to_c_ptr(err_msg);
     }
     
     let (client, runtime) = unsafe { &*(client_ptr as *const (Client, tokio::runtime::Runtime)) };
@@ -410,7 +451,9 @@ pub extern "C" fn reqwest_get_with_header(
         Ok(s) => s,
         Err(_) => {
             println!("Invalid URL string");
-            return string_to_cstring_ptr("Error: Invalid URL string");
+            let err_msg = b"Error: Invalid URL string";
+            unsafe { *num_bytes = err_msg.len() as u32; }
+            return bytes_to_c_ptr(err_msg);
         }
     };
     
@@ -418,7 +461,9 @@ pub extern "C" fn reqwest_get_with_header(
         Ok(s) => s,
         Err(_) => {
             println!("Invalid header name string");
-            return string_to_cstring_ptr("Error: Invalid header name string");
+            let err_msg = b"Error: Invalid header name string";
+            unsafe { *num_bytes = err_msg.len() as u32; }
+            return bytes_to_c_ptr(err_msg);
         }
     };
     
@@ -426,35 +471,38 @@ pub extern "C" fn reqwest_get_with_header(
         Ok(s) => s,
         Err(_) => {
             println!("Invalid header value string");
-            return string_to_cstring_ptr("Error: Invalid header value string");
+            let err_msg = b"Error: Invalid header value string";
+            unsafe { *num_bytes = err_msg.len() as u32; }
+            return bytes_to_c_ptr(err_msg);
         }
     };
     
-    let response_text = match runtime.block_on(async {
+    let response_result = runtime.block_on(async {
         let response = match client.get(url_str)
             .header(header_name_str, header_value_str)
             .send()
             .await 
         {
             Ok(resp) => resp,
-            Err(e) => return format!("Error: {}", e),
+            Err(e) => return Err(format!("Error: {}", e)),
         };
         
-        match response.text().await {
-            Ok(text) => text,
-            Err(e) => format!("Error: {}", e),
+        match response.bytes().await {
+            Ok(bytes) => Ok(bytes.to_vec()),
+            Err(e) => Err(format!("Error: {}", e)),
         }
-    }) {
-        text => text,
-    };
+    });
     
-    // Pass the length of the string back to the caller through the num_bytes pointer
-    let return_value_length = response_text.len() as u32;
-    unsafe {
-        *num_bytes = return_value_length;
+    match response_result {
+        Ok(data) => {
+            unsafe { *num_bytes = data.len() as u32; }
+            bytes_to_c_ptr(&data)
+        }
+        Err(e) => {
+            unsafe { *num_bytes = e.len() as u32; }
+            bytes_to_c_ptr(e.as_bytes())
+        }
     }
-    
-    string_to_cstring_ptr(&response_text)
 }
 
 // =========== ASYNC API FUNCTIONS ===========
@@ -464,6 +512,7 @@ pub extern "C" fn reqwest_get_with_header(
 pub extern "C" fn reqwest_async_get_start(
     client_ptr: *mut c_void,
     url: *const c_char,
+    file_path: *const c_char,
 ) -> RequestId {
     if client_ptr.is_null() {
         println!("Client pointer is null");
@@ -477,6 +526,15 @@ pub extern "C" fn reqwest_async_get_start(
             println!("Invalid URL string");
             return 0;
         }
+    };
+    
+    let file_path_str = if !file_path.is_null() {
+        match unsafe { CStr::from_ptr(file_path).to_str() } {
+            Ok(s) if !s.is_empty() => Some(s.to_string()),
+            _ => None,
+        }
+    } else {
+        None
     };
     
     // Create a new request ID
@@ -503,28 +561,81 @@ pub extern "C" fn reqwest_async_get_start(
     
     // Spawn the async task
     runtime.spawn(async move {
+        let mut file = if let Some(path) = &file_path_str {
+            match std::fs::File::create(path) {
+                Ok(f) => Some(f),
+                Err(e) => {
+                    let mut progress = progress_info.write().unwrap();
+                    progress.status = RequestStatus::Error;
+                    progress.error = Some(format!("Failed to create file: {}", e));
+                    return;
+                }
+            }
+        } else {
+            None
+        };
+
         let result = client_clone.get(&url_clone).send().await;
         
         match result {
-            Ok(resp) => {
+            Ok(mut resp) => {
                 // Update total bytes if available
-                if let Some(content_length) = resp.content_length() {
+                let total_size = resp.content_length();
+                {
                     let mut progress = progress_info.write().unwrap();
-                    progress.total_bytes = Some(content_length);
+                    progress.total_bytes = total_size;
                 }
                 
-                // Read the response body as text
-                match resp.text().await {
-                    Ok(text) => {
-                        let mut progress = progress_info.write().unwrap();
-                        progress.status = RequestStatus::Completed;
-                        progress.received_bytes = text.len() as u64;
-                        progress.response_data = Some(text);
-                    },
-                    Err(e) => {
-                        let mut progress = progress_info.write().unwrap();
-                        progress.status = RequestStatus::Error;
-                        progress.error = Some(format!("Error reading response: {}", e));
+                let mut received_data = if file.is_none() {
+                    Some(Vec::with_capacity(total_size.unwrap_or(0) as usize))
+                } else {
+                    None
+                };
+
+                loop {
+                    // Check for cancellation before awaiting the next chunk
+                    if progress_info.read().unwrap().status == RequestStatus::Cancelled {
+                        return;
+                    }
+
+                    match resp.chunk().await {
+                        Ok(Some(chunk)) => {
+                            if let Some(f) = &mut file {
+                                if let Err(e) = f.write_all(&chunk) {
+                                    let mut progress = progress_info.write().unwrap();
+                                    progress.status = RequestStatus::Error;
+                                    progress.error =
+                                        Some(format!("Error writing to file: {}", e));
+                                    break;
+                                }
+                            } else if let Some(data) = &mut received_data {
+                                data.extend_from_slice(&chunk);
+                            }
+
+                            {
+                                let mut progress = progress_info.write().unwrap();
+                                // In case of cancellation, we stop updating progress.
+                                if progress.status == RequestStatus::InProgress {
+                                    progress.received_bytes += chunk.len() as u64;
+                                }
+                            }
+                        }
+                        Ok(None) => {
+                            // Download complete
+                            let mut progress = progress_info.write().unwrap();
+                            if progress.status == RequestStatus::InProgress {
+                                progress.status = RequestStatus::Completed;
+                                progress.response_data = received_data;
+                            }
+                            break;
+                        }
+                        Err(e) => {
+                            // Error during download
+                            let mut progress = progress_info.write().unwrap();
+                            progress.status = RequestStatus::Error;
+                            progress.error = Some(format!("Error reading response: {}", e));
+                            break;
+                        }
                     }
                 }
             },
@@ -584,6 +695,32 @@ pub extern "C" fn reqwest_async_get_progress(request_id: RequestId) -> i32 {
     }
 }
 
+// Get the total bytes of an async request. Returns 0 if not available.
+#[no_mangle]
+pub extern "C" fn reqwest_async_get_total_bytes(request_id: RequestId) -> u64 {
+    let tracker = REQUEST_TRACKER.lock().unwrap();
+    
+    if let Some(progress_info) = tracker.get(&request_id) {
+        let progress = progress_info.read().unwrap();
+        progress.total_bytes.unwrap_or(0)
+    } else {
+        0
+    }
+}
+
+// Get the received bytes of an async request.
+#[no_mangle]
+pub extern "C" fn reqwest_async_get_received_bytes(request_id: RequestId) -> u64 {
+    let tracker = REQUEST_TRACKER.lock().unwrap();
+    
+    if let Some(progress_info) = tracker.get(&request_id) {
+        let progress = progress_info.read().unwrap();
+        progress.received_bytes
+    } else {
+        0
+    }
+}
+
 // Get the response data from an async request
 #[no_mangle]
 pub extern "C" fn reqwest_async_get_response(
@@ -604,7 +741,7 @@ pub extern "C" fn reqwest_async_get_response(
                         *num_bytes = return_value_length;
                     }
                     
-                    return string_to_cstring_ptr(data);
+                    return bytes_to_c_ptr(data);
                 }
             },
             RequestStatus::Error => {
@@ -615,7 +752,7 @@ pub extern "C" fn reqwest_async_get_response(
                         *num_bytes = return_value_length;
                     }
                     
-                    return string_to_cstring_ptr(error);
+                    return bytes_to_c_ptr(error.as_bytes());
                 }
             },
             _ => {}
@@ -626,7 +763,7 @@ pub extern "C" fn reqwest_async_get_response(
     unsafe {
         *num_bytes = 0;
     }
-    string_to_cstring_ptr("")
+    bytes_to_c_ptr(b"")
 }
 
 // Cancel an async request
@@ -657,11 +794,11 @@ pub extern "C" fn reqwest_async_cleanup(request_id: RequestId) {
 // exported function that frees the memory allocated for a string
 // this *must* be called for every string returned from a function in this library
 #[no_mangle]
-pub extern "C" fn cstring_free_memory(s: *mut c_char) {
+pub extern "C" fn reqwest_free_memory(s: *mut c_char) {
     if s.is_null() {
         return;
     }
-    unsafe { let _ = CString::from_raw(s); };
+    unsafe { libc::free(s as *mut c_void); };
 }
 
 #[cfg(test)]
@@ -691,7 +828,7 @@ mod tests {
         let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
         
         // Free the response string
-        cstring_free_memory(response_ptr);
+        reqwest_free_memory(response_ptr);
         
         // Close the client
         reqwest_client_close(client_ptr);
@@ -725,7 +862,7 @@ mod tests {
         let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
         
         // Free the response string
-        cstring_free_memory(response_ptr);
+        reqwest_free_memory(response_ptr);
         
         // Close the client
         reqwest_client_close(client_ptr);
@@ -747,7 +884,7 @@ mod tests {
         let url = CString::new("https://httpbin.org/get").unwrap();
         
         // Start an async GET request
-        let request_id = reqwest_async_get_start(client_ptr, url.as_ptr());
+        let request_id = reqwest_async_get_start(client_ptr, url.as_ptr(), ptr::null());
         assert!(request_id > 0);
         
         // Wait for the request to complete (with timeout)
@@ -771,7 +908,7 @@ mod tests {
         let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
         
         // Free the response string
-        cstring_free_memory(response_ptr);
+        reqwest_free_memory(response_ptr);
         
         // Clean up the request
         reqwest_async_cleanup(request_id);
@@ -782,5 +919,99 @@ mod tests {
         // Verify the response contains expected data
         assert!(response_str.contains("httpbin.org"), "Response should contain 'httpbin.org' but was: {}", response_str);
         assert!(num_bytes > 0, "Response should have bytes");
+    }
+
+    // Test async GET to file
+    #[test]
+    fn test_reqwest_async_get_to_file() {
+        // Create a client
+        let client_ptr = reqwest_client_new();
+        assert!(!client_ptr.is_null());
+
+        // Create a URL string
+        let url = CString::new("https://httpbin.org/get").unwrap();
+
+        // Define a file path for the download
+        let file_path = "test_download.json";
+        let file_path_cstr = CString::new(file_path).unwrap();
+
+        // Start an async GET request to file
+        let request_id =
+            reqwest_async_get_start(client_ptr, url.as_ptr(), file_path_cstr.as_ptr());
+        assert!(request_id > 0);
+
+        // Wait for the request to complete (with timeout)
+        let start_time = std::time::Instant::now();
+        let mut completed = false;
+
+        while !completed && start_time.elapsed().as_secs() < 10 {
+            completed = reqwest_async_is_complete(request_id);
+            if !completed {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+        }
+
+        assert!(completed, "Request should complete within timeout");
+
+        // Get the response data, which should be empty
+        let mut num_bytes: u32 = 0;
+        let response_ptr = reqwest_async_get_response(request_id, &mut num_bytes as *mut u32);
+        let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
+        reqwest_free_memory(response_ptr);
+
+        assert_eq!(num_bytes, 0, "num_bytes should be 0");
+        assert!(
+            response_str.is_empty(),
+            "Response string should be empty"
+        );
+
+        // Verify the file was created and has content
+        let file_content =
+            std::fs::read_to_string(file_path).expect("Should have been able to read the file");
+        assert!(file_content.contains("httpbin.org"));
+
+        // Clean up the request
+        reqwest_async_cleanup(request_id);
+
+        // Clean up the downloaded file
+        std::fs::remove_file(file_path).unwrap();
+
+        // Close the client
+        reqwest_client_close(client_ptr);
+    }
+
+    // Test binary file download
+    #[test]
+    fn test_reqwest_get_binary() {
+        // Create a client
+        let client_ptr = reqwest_client_new();
+        assert!(!client_ptr.is_null());
+        
+        // Create a URL string to a binary file
+        let url = CString::new("https://httpbin.org/image/png").unwrap();
+        
+        // Make a GET request
+        let mut num_bytes: u32 = 0;
+        let response_ptr = reqwest_get(
+            client_ptr,
+            url.as_ptr(),
+            &mut num_bytes as *mut u32,
+        );
+
+        assert!(!response_ptr.is_null(), "Response pointer should not be null");
+        
+        // PNG file signature
+        let png_signature: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
+        let response_slice = unsafe { std::slice::from_raw_parts(response_ptr as *const u8, num_bytes as usize) };
+        
+        // Verify the response starts with PNG signature
+        assert!(num_bytes > 8, "Response should be larger than 8 bytes for a PNG file");
+        assert_eq!(&response_slice[..8], &png_signature, "Response should be a PNG file");
+
+        // Free the response string
+        reqwest_free_memory(response_ptr);
+        
+        // Close the client
+        reqwest_client_close(client_ptr);
     }
 } 
