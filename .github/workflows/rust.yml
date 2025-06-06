@@ -55,12 +55,6 @@ jobs:
             bitness: 64
 
     steps:
-    # - name: Install Rust Toolchain
-    #   uses: actions-rs/toolchain@v1
-    #   with:
-    #     toolchain: stable
-    #     target: ${{ matrix.target }}
-
 
     - name: Cache
       uses: actions/cache@v4
