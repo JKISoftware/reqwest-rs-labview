@@ -980,6 +980,279 @@ mod tests {
         reqwest_client_close(client_ptr);
     }
 
+    // Test PUT with JSON body
+    #[test]
+    fn test_reqwest_put_json() {
+        // Create a client
+        let client_ptr = reqwest_client_new();
+        assert!(!client_ptr.is_null());
+
+        // Create a URL string and JSON body
+        let url = CString::new("https://httpbin.org/put").unwrap();
+        let json_body = CString::new(r#"{"name":"test","value":456}"#).unwrap();
+
+        // Make a PUT request
+        let mut num_bytes: u32 = 0;
+        let response_ptr = reqwest_put_json(
+            client_ptr,
+            url.as_ptr(),
+            json_body.as_ptr(),
+            &mut num_bytes as *mut u32,
+        );
+
+        // Convert response to Rust string
+        let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
+
+        // Free the response string
+        reqwest_free_memory(response_ptr);
+
+        // Close the client
+        reqwest_client_close(client_ptr);
+
+        // Verify the response contains expected data
+        assert!(response_str.contains("test"));
+        assert!(response_str.contains("456"));
+        assert!(num_bytes > 0);
+    }
+
+    // Test DELETE request
+    #[test]
+    fn test_reqwest_delete() {
+        // Create a client
+        let client_ptr = reqwest_client_new();
+        assert!(!client_ptr.is_null());
+
+        // Create a URL string
+        let url = CString::new("https://httpbin.org/delete").unwrap();
+
+        // Make a DELETE request
+        let mut num_bytes: u32 = 0;
+        let response_ptr = reqwest_delete(client_ptr, url.as_ptr(), &mut num_bytes as *mut u32);
+
+        // Convert response to Rust string
+        let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
+
+        // Free the response string
+        reqwest_free_memory(response_ptr);
+
+        // Close the client
+        reqwest_client_close(client_ptr);
+
+        // Verify the response contains expected data (httpbin.org/delete returns info about the request)
+        assert!(response_str.contains("httpbin.org/delete"));
+        assert!(num_bytes > 0);
+    }
+
+    // Test POST with form data
+    #[test]
+    fn test_reqwest_post_form() {
+        // Create a client
+        let client_ptr = reqwest_client_new();
+        assert!(!client_ptr.is_null());
+
+        // Create a URL string and form data
+        let url = CString::new("https://httpbin.org/post").unwrap();
+        let form_data = CString::new("key1=value1&key2=value2").unwrap();
+
+        // Make a POST request with form
+        let mut num_bytes: u32 = 0;
+        let response_ptr = reqwest_post_form(
+            client_ptr,
+            url.as_ptr(),
+            form_data.as_ptr(),
+            &mut num_bytes as *mut u32,
+        );
+
+        // Convert response to Rust string
+        let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
+
+        // Free the response string
+        reqwest_free_memory(response_ptr);
+
+        // Close the client
+        reqwest_client_close(client_ptr);
+
+        // Verify the response contains expected data
+        assert!(response_str.contains("key1"));
+        assert!(response_str.contains("value1"));
+        assert!(response_str.contains("key2"));
+        assert!(response_str.contains("value2"));
+        assert!(num_bytes > 0);
+    }
+
+    // Test getting status code
+    #[test]
+    fn test_reqwest_get_status() {
+        // Create a client
+        let client_ptr = reqwest_client_new();
+        assert!(!client_ptr.is_null());
+
+        // Create a URL string
+        let url = CString::new("https://httpbin.org/status/200").unwrap();
+
+        // Get status code
+        let status_code = reqwest_get_status(client_ptr, url.as_ptr());
+
+        // Close the client
+        reqwest_client_close(client_ptr);
+
+        // Verify the status code
+        assert_eq!(status_code, 200);
+    }
+
+    // Test GET with custom header
+    #[test]
+    fn test_reqwest_get_with_header() {
+        // Create a client
+        let client_ptr = reqwest_client_new();
+        assert!(!client_ptr.is_null());
+
+        // Create URL, header name, and header value
+        let url = CString::new("https://httpbin.org/headers").unwrap();
+        let header_name = CString::new("X-My-Header").unwrap();
+        let header_value = CString::new("is-awesome").unwrap();
+
+        // Make a GET request with header
+        let mut num_bytes: u32 = 0;
+        let response_ptr = reqwest_get_with_header(
+            client_ptr,
+            url.as_ptr(),
+            header_name.as_ptr(),
+            header_value.as_ptr(),
+            &mut num_bytes as *mut u32,
+        );
+
+        // Convert response to Rust string
+        let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
+
+        // Free the response string
+        reqwest_free_memory(response_ptr);
+
+        // Close the client
+        reqwest_client_close(client_ptr);
+
+        // Verify the response contains the header we sent
+        assert!(response_str.contains("X-My-Header"));
+        assert!(response_str.contains("is-awesome"));
+        assert!(num_bytes > 0);
+    }
+
+    // Test async cancel
+    #[test]
+    fn test_reqwest_async_cancel() {
+        // Create a client
+        let client_ptr = reqwest_client_new();
+        assert!(!client_ptr.is_null());
+
+        // URL that is slow to respond
+        let url = CString::new("https://httpbin.org/delay/5").unwrap();
+
+        // Start an async GET request
+        let request_id = reqwest_async_get_start(client_ptr, url.as_ptr(), ptr::null());
+        assert!(request_id > 0);
+
+        // Cancel the request immediately
+        let cancelled = reqwest_async_cancel(request_id);
+        assert!(cancelled);
+
+        // Wait a bit to ensure cancellation is processed
+        std::thread::sleep(std::time::Duration::from_millis(200));
+
+        // Check that it's complete (due to cancellation)
+        assert!(reqwest_async_is_complete(request_id));
+
+        // Get response, should be empty or indicate cancellation
+        let mut num_bytes: u32 = 0;
+        let response_ptr = reqwest_async_get_response(request_id, &mut num_bytes as *mut u32);
+        assert_eq!(num_bytes, 0);
+        reqwest_free_memory(response_ptr);
+
+        // Clean up
+        reqwest_async_cleanup(request_id);
+        reqwest_client_close(client_ptr);
+    }
+
+    // Test async progress
+    #[test]
+    fn test_reqwest_async_progress() {
+        // Create a client
+        let client_ptr = reqwest_client_new();
+        assert!(!client_ptr.is_null());
+
+        // A URL that streams data, making it good for progress checks
+        let url = CString::new("https://httpbin.org/stream-bytes/102400").unwrap();
+
+        // Start async GET
+        let request_id = reqwest_async_get_start(client_ptr, url.as_ptr(), ptr::null());
+        assert!(request_id > 0);
+
+        let mut last_received = 0;
+
+        // Poll for progress
+        while !reqwest_async_is_complete(request_id) {
+            let received = reqwest_async_get_received_bytes(request_id);
+
+            // httpbin.org/stream-bytes doesn't set Content-Length, so total will be 0 and progress will be 0 until complete.
+            // Let's just check received bytes.
+            assert!(received >= last_received);
+            last_received = received;
+
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+
+        assert!(reqwest_async_get_progress(request_id) == 100);
+        assert!(reqwest_async_get_received_bytes(request_id) > 0);
+        // httpbin.org/stream-bytes doesn't give a content-length, so total will be 0.
+        // But we can check that received bytes is equal to the final response length.
+
+        let last_received_final = reqwest_async_get_received_bytes(request_id);
+        let mut num_bytes: u32 = 0;
+        let response_ptr = reqwest_async_get_response(request_id, &mut num_bytes);
+        assert_eq!(num_bytes as u64, last_received_final);
+        reqwest_free_memory(response_ptr);
+
+        reqwest_async_cleanup(request_id);
+        reqwest_client_close(client_ptr);
+    }
+
+    #[test]
+    fn test_reqwest_async_total_bytes() {
+        // Create a client
+        let client_ptr = reqwest_client_new();
+        assert!(!client_ptr.is_null());
+
+        // This URL should have a content-length header
+        let url = CString::new("https://httpbin.org/image/png").unwrap();
+
+        // Start async GET
+        let request_id = reqwest_async_get_start(client_ptr, url.as_ptr(), ptr::null());
+        assert!(request_id > 0);
+
+        // Wait for headers to be received and total_bytes to be available
+        let start_time = std::time::Instant::now();
+        let mut total_bytes = 0;
+        while total_bytes == 0 && start_time.elapsed().as_secs() < 5 {
+            total_bytes = reqwest_async_get_total_bytes(request_id);
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+
+        assert!(total_bytes > 0, "Total bytes should be greater than 0");
+
+        // Let it finish
+        while !reqwest_async_is_complete(request_id) {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+
+        let received_bytes = reqwest_async_get_received_bytes(request_id);
+        assert_eq!(
+            total_bytes, received_bytes,
+            "Total bytes should match received bytes on completion"
+        );
+
+        reqwest_async_cleanup(request_id);
+        reqwest_client_close(client_ptr);
+    }
+
     // Test binary file download
     #[test]
     fn test_reqwest_get_binary() {
