@@ -1,5 +1,5 @@
 # use PowerShell instead of sh:
-set shell := ["powershell.exe", "-c"]
+set shell := ["pwsh", "-c"]
 
 alias   b   := build
 alias   d   := develop
