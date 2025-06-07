@@ -1,12 +1,17 @@
 use libc::c_char;
+use reqwest::{
+    header::{HeaderMap, HeaderName, HeaderValue},
+    Client, ClientBuilder, StatusCode,
+};
 use std::{
     collections::HashMap,
     ffi::{c_void, CStr},
-    io::Write,
     ptr,
     sync::{Arc, Mutex, RwLock},
+    time::Duration,
 };
-use reqwest::Client;
+
+mod async_support;
 
 // Types to track ongoing requests
 type RequestId = u64;
@@ -18,13 +23,20 @@ lazy_static::lazy_static! {
     static ref NEXT_REQUEST_ID: Mutex<RequestId> = Mutex::new(1);
 }
 
+// Helper function to get next request ID
+fn next_request_id() -> RequestId {
+    let mut id = NEXT_REQUEST_ID.lock().unwrap();
+    let current = *id;
+    *id += 1;
+    current
+}
+
 // Struct to track request progress
 struct RequestProgress {
     status: RequestStatus,
     total_bytes: Option<u64>,
     received_bytes: u64,
-    response_data: Option<Vec<u8>>,
-    error: Option<String>,
+    final_response: Option<Response>,
 }
 
 // Enum to track request status
@@ -36,490 +48,198 @@ enum RequestStatus {
     Cancelled,
 }
 
-// Helper function to copy bytes to a C-compatible buffer.
-// The caller is responsible for freeing the memory with `reqwest_free_memory`.
-fn bytes_to_c_ptr(data: &[u8]) -> *mut c_char {
-    let len = data.len();
+pub struct Response {
+    status: StatusCode,
+    headers: HeaderMap,
+    body: Result<Vec<u8>, String>,
+}
+
+// Wrapper for the reqwest HeaderMap
+pub struct ReqwestHeaderMap(HeaderMap);
+
+// Create a new header map
+#[no_mangle]
+pub extern "C" fn headers_new() -> *mut ReqwestHeaderMap {
+    Box::into_raw(Box::new(ReqwestHeaderMap(HeaderMap::new())))
+}
+
+// Free a header map
+#[no_mangle]
+pub extern "C" fn headers_free(map_ptr: *mut ReqwestHeaderMap) {
+    if map_ptr.is_null() {
+        return;
+    }
     unsafe {
-        let buffer = libc::malloc(len + 1); // +1 for null terminator for strings
-        if buffer.is_null() {
-            // In case of allocation failure, we can't do much.
-            // Returning a pointer to a static string is unsafe because the caller will try to free it.
-            // Returning null is the safest option.
-            return ptr::null_mut();
-        }
-        ptr::copy_nonoverlapping(data.as_ptr(), buffer as *mut u8, len);
-        // Add null terminator for safety with C string functions
-        *(buffer as *mut u8).add(len) = 0;
-        buffer as *mut c_char
+        let _ = Box::from_raw(map_ptr);
     }
 }
 
-// Helper function to get next request ID
-fn next_request_id() -> RequestId {
-    let mut id = NEXT_REQUEST_ID.lock().unwrap();
-    let current = *id;
-    *id += 1;
-    current
+// Add a header to the map
+#[no_mangle]
+pub extern "C" fn headers_add(
+    map_ptr: *mut ReqwestHeaderMap,
+    key: *const c_char,
+    value: *const c_char,
+) -> bool {
+    if map_ptr.is_null() || key.is_null() || value.is_null() {
+        return false;
+    }
+
+    let (key_str, value_str) = unsafe {
+        let key_cstr = CStr::from_ptr(key);
+        let value_cstr = CStr::from_ptr(value);
+        (
+            key_cstr.to_str().unwrap_or_default(),
+            value_cstr.to_str().unwrap_or_default(),
+        )
+    };
+
+    if key_str.is_empty() {
+        return false;
+    }
+
+    let header_name = match HeaderName::from_bytes(key_str.as_bytes()) {
+        Ok(name) => name,
+        Err(_) => return false,
+    };
+
+    let header_value = match HeaderValue::from_str(value_str) {
+        Ok(val) => val,
+        Err(_) => return false,
+    };
+
+    unsafe { &mut *map_ptr }
+        .0
+        .append(header_name, header_value);
+    true
 }
 
-// Create a new reqwest client and return a pointer to it
+// Wrapper for the reqwest ClientBuilder
+pub struct ReqwestClientBuilder(ClientBuilder);
+
+// Create a new client builder
 #[no_mangle]
-pub extern "C" fn reqwest_client_new() -> *mut c_void {
-    let runtime = match tokio::runtime::Runtime::new() {
-        Ok(rt) => rt,
+pub extern "C" fn client_builder_new() -> *mut ReqwestClientBuilder {
+    Box::into_raw(Box::new(ReqwestClientBuilder(Client::builder())))
+}
+
+// Free a client builder if it's not used
+#[no_mangle]
+pub extern "C" fn client_builder_free(builder_ptr: *mut ReqwestClientBuilder) {
+    if builder_ptr.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(builder_ptr);
+    }
+}
+
+// Set default headers for the client
+#[no_mangle]
+pub extern "C" fn client_builder_default_headers(
+    builder_ptr: *mut ReqwestClientBuilder,
+    headers_ptr: *mut ReqwestHeaderMap,
+) -> *mut ReqwestClientBuilder {
+    if builder_ptr.is_null() {
+        return ptr::null_mut();
+    }
+    let headers = if headers_ptr.is_null() {
+        HeaderMap::new()
+    } else {
+        unsafe { (*headers_ptr).0.clone() }
+    };
+
+    let builder = unsafe {
+        // an unsafe block is required to dereference the raw pointer
+        std::mem::take(&mut (*builder_ptr).0)
+    };
+    unsafe { &mut *builder_ptr }.0 = builder.default_headers(headers);
+    builder_ptr
+}
+
+// Set timeouts for the client
+#[no_mangle]
+pub extern "C" fn client_builder_timeout(
+    builder_ptr: *mut ReqwestClientBuilder,
+    connect_timeout_secs: u64,
+    timeout_secs: u64,
+) -> *mut ReqwestClientBuilder {
+    if builder_ptr.is_null() {
+        return ptr::null_mut();
+    }
+    let builder = unsafe {
+        // an unsafe block is required to dereference the raw pointer
+        std::mem::take(&mut (*builder_ptr).0)
+    };
+    unsafe { &mut *builder_ptr }.0 = builder
+        .connect_timeout(Duration::from_secs(connect_timeout_secs))
+        .timeout(Duration::from_secs(timeout_secs));
+    builder_ptr
+}
+
+// Set whether to accept invalid certificates
+#[no_mangle]
+pub extern "C" fn client_builder_danger_accept_invalid_certs(
+    builder_ptr: *mut ReqwestClientBuilder,
+    accept: bool,
+) -> *mut ReqwestClientBuilder {
+    if builder_ptr.is_null() {
+        return ptr::null_mut();
+    }
+    let builder = unsafe {
+        // an unsafe block is required to dereference the raw pointer
+        std::mem::take(&mut (*builder_ptr).0)
+    };
+    unsafe { &mut *builder_ptr }.0 = builder.danger_accept_invalid_certs(accept);
+    builder_ptr
+}
+
+// Build the client from the builder
+#[no_mangle]
+pub extern "C" fn client_builder_build(builder_ptr: *mut ReqwestClientBuilder) -> *mut c_void {
+    if builder_ptr.is_null() {
+        return ptr::null_mut();
+    }
+
+    let builder = unsafe { Box::from_raw(builder_ptr) };
+
+    let client = match builder.0.build() {
+        Ok(c) => c,
         Err(e) => {
-            println!("Failed to create Tokio runtime: {}", e);
+            println!("Failed to build client: {}", e);
             return ptr::null_mut();
         }
     };
 
-    let client = Client::new();
-    
-    // Box both the client and runtime together so we can keep the runtime alive
-    let client_with_runtime = Box::new((client, runtime));
-    
-    Box::into_raw(client_with_runtime) as *mut c_void
+    // Box the client to be passed as a raw pointer
+    Box::into_raw(Box::new(client)) as *mut c_void
 }
 
 // Close a reqwest client and free the memory
 #[no_mangle]
-pub extern "C" fn reqwest_client_close(client_ptr: *mut c_void) {
+pub extern "C" fn client_close(client_ptr: *mut c_void) {
     if client_ptr.is_null() {
-        println!("Client pointer is null");
         return;
     }
-    
+
     unsafe {
-        let _ = Box::from_raw(client_ptr as *mut (Client, tokio::runtime::Runtime));
+        let _ = Box::from_raw(client_ptr as *mut Client);
     }
 }
-
-// Make a GET request and return the response body as a string
-#[no_mangle]
-pub extern "C" fn reqwest_get(
-    client_ptr: *mut c_void,
-    url: *const c_char,
-    num_bytes: *mut u32,
-) -> *mut c_char {
-    if client_ptr.is_null() {
-        println!("Client pointer is null");
-        let err_msg = b"Error: Client pointer is null";
-        unsafe { *num_bytes = err_msg.len() as u32; }
-        return bytes_to_c_ptr(err_msg);
-    }
-    
-    let (client, runtime) = unsafe { &*(client_ptr as *const (Client, tokio::runtime::Runtime)) };
-    let url_str = match unsafe { CStr::from_ptr(url).to_str() } {
-        Ok(s) => s,
-        Err(_) => {
-            println!("Invalid URL string");
-            let err_msg = b"Error: Invalid URL string";
-            unsafe { *num_bytes = err_msg.len() as u32; }
-            return bytes_to_c_ptr(err_msg);
-        }
-    };
-    
-    let response_result = runtime.block_on(async {
-        let response = match client.get(url_str).send().await {
-            Ok(resp) => resp,
-            Err(e) => return Err(format!("Error: {}", e)),
-        };
-        
-        match response.bytes().await {
-            Ok(bytes) => Ok(bytes.to_vec()),
-            Err(e) => Err(format!("Error: {}", e)),
-        }
-    });
-
-    match response_result {
-        Ok(data) => {
-            unsafe { *num_bytes = data.len() as u32; }
-            bytes_to_c_ptr(&data)
-        }
-        Err(e) => {
-            unsafe { *num_bytes = e.len() as u32; }
-            bytes_to_c_ptr(e.as_bytes())
-        }
-    }
-}
-
-// Make a POST request with a JSON body and return the response body as a string
-#[no_mangle]
-pub extern "C" fn reqwest_post_json(
-    client_ptr: *mut c_void,
-    url: *const c_char,
-    json_body: *const c_char,
-    num_bytes: *mut u32,
-) -> *mut c_char {
-    if client_ptr.is_null() {
-        println!("Client pointer is null");
-        let err_msg = b"Error: Client pointer is null";
-        unsafe { *num_bytes = err_msg.len() as u32; }
-        return bytes_to_c_ptr(err_msg);
-    }
-    
-    let (client, runtime) = unsafe { &*(client_ptr as *const (Client, tokio::runtime::Runtime)) };
-    let url_str = match unsafe { CStr::from_ptr(url).to_str() } {
-        Ok(s) => s,
-        Err(_) => {
-            println!("Invalid URL string");
-            let err_msg = b"Error: Invalid URL string";
-            unsafe { *num_bytes = err_msg.len() as u32; }
-            return bytes_to_c_ptr(err_msg);
-        }
-    };
-    
-    let json_str = match unsafe { CStr::from_ptr(json_body).to_str() } {
-        Ok(s) => s,
-        Err(_) => {
-            println!("Invalid JSON string");
-            let err_msg = b"Error: Invalid JSON string";
-            unsafe { *num_bytes = err_msg.len() as u32; }
-            return bytes_to_c_ptr(err_msg);
-        }
-    };
-    
-    let response_result = runtime.block_on(async {
-        let response = match client.post(url_str)
-            .header("Content-Type", "application/json")
-            .body(json_str.to_string())
-            .send()
-            .await 
-        {
-            Ok(resp) => resp,
-            Err(e) => return Err(format!("Error: {}", e)),
-        };
-        
-        match response.bytes().await {
-            Ok(bytes) => Ok(bytes.to_vec()),
-            Err(e) => Err(format!("Error: {}", e)),
-        }
-    });
-
-    match response_result {
-        Ok(data) => {
-            unsafe { *num_bytes = data.len() as u32; }
-            bytes_to_c_ptr(&data)
-        }
-        Err(e) => {
-            unsafe { *num_bytes = e.len() as u32; }
-            bytes_to_c_ptr(e.as_bytes())
-        }
-    }
-}
-
-// Make a PUT request with a JSON body and return the response body as a string
-#[no_mangle]
-pub extern "C" fn reqwest_put_json(
-    client_ptr: *mut c_void,
-    url: *const c_char,
-    json_body: *const c_char,
-    num_bytes: *mut u32,
-) -> *mut c_char {
-    if client_ptr.is_null() {
-        println!("Client pointer is null");
-        let err_msg = b"Error: Client pointer is null";
-        unsafe { *num_bytes = err_msg.len() as u32; }
-        return bytes_to_c_ptr(err_msg);
-    }
-    
-    let (client, runtime) = unsafe { &*(client_ptr as *const (Client, tokio::runtime::Runtime)) };
-    let url_str = match unsafe { CStr::from_ptr(url).to_str() } {
-        Ok(s) => s,
-        Err(_) => {
-            println!("Invalid URL string");
-            let err_msg = b"Error: Invalid URL string";
-            unsafe { *num_bytes = err_msg.len() as u32; }
-            return bytes_to_c_ptr(err_msg);
-        }
-    };
-    
-    let json_str = match unsafe { CStr::from_ptr(json_body).to_str() } {
-        Ok(s) => s,
-        Err(_) => {
-            println!("Invalid JSON string");
-            let err_msg = b"Error: Invalid JSON string";
-            unsafe { *num_bytes = err_msg.len() as u32; }
-            return bytes_to_c_ptr(err_msg);
-        }
-    };
-    
-    let response_result = runtime.block_on(async {
-        let response = match client.put(url_str)
-            .header("Content-Type", "application/json")
-            .body(json_str.to_string())
-            .send()
-            .await 
-        {
-            Ok(resp) => resp,
-            Err(e) => return Err(format!("Error: {}", e)),
-        };
-        
-        match response.bytes().await {
-            Ok(bytes) => Ok(bytes.to_vec()),
-            Err(e) => Err(format!("Error: {}", e)),
-        }
-    });
-    
-    match response_result {
-        Ok(data) => {
-            unsafe { *num_bytes = data.len() as u32; }
-            bytes_to_c_ptr(&data)
-        }
-        Err(e) => {
-            unsafe { *num_bytes = e.len() as u32; }
-            bytes_to_c_ptr(e.as_bytes())
-        }
-    }
-}
-
-// Make a DELETE request and return the response body as a string
-#[no_mangle]
-pub extern "C" fn reqwest_delete(
-    client_ptr: *mut c_void,
-    url: *const c_char,
-    num_bytes: *mut u32,
-) -> *mut c_char {
-    if client_ptr.is_null() {
-        println!("Client pointer is null");
-        let err_msg = b"Error: Client pointer is null";
-        unsafe { *num_bytes = err_msg.len() as u32; }
-        return bytes_to_c_ptr(err_msg);
-    }
-    
-    let (client, runtime) = unsafe { &*(client_ptr as *const (Client, tokio::runtime::Runtime)) };
-    let url_str = match unsafe { CStr::from_ptr(url).to_str() } {
-        Ok(s) => s,
-        Err(_) => {
-            println!("Invalid URL string");
-            let err_msg = b"Error: Invalid URL string";
-            unsafe { *num_bytes = err_msg.len() as u32; }
-            return bytes_to_c_ptr(err_msg);
-        }
-    };
-    
-    let response_result = runtime.block_on(async {
-        let response = match client.delete(url_str).send().await {
-            Ok(resp) => resp,
-            Err(e) => return Err(format!("Error: {}", e)),
-        };
-        
-        match response.bytes().await {
-            Ok(bytes) => Ok(bytes.to_vec()),
-            Err(e) => Err(format!("Error: {}", e)),
-        }
-    });
-    
-    match response_result {
-        Ok(data) => {
-            unsafe { *num_bytes = data.len() as u32; }
-            bytes_to_c_ptr(&data)
-        }
-        Err(e) => {
-            unsafe { *num_bytes = e.len() as u32; }
-            bytes_to_c_ptr(e.as_bytes())
-        }
-    }
-}
-
-// Make a POST request with a form body and return the response body as a string
-#[no_mangle]
-pub extern "C" fn reqwest_post_form(
-    client_ptr: *mut c_void,
-    url: *const c_char,
-    form_data: *const c_char,
-    num_bytes: *mut u32,
-) -> *mut c_char {
-    if client_ptr.is_null() {
-        println!("Client pointer is null");
-        let err_msg = b"Error: Client pointer is null";
-        unsafe { *num_bytes = err_msg.len() as u32; }
-        return bytes_to_c_ptr(err_msg);
-    }
-    
-    let (client, runtime) = unsafe { &*(client_ptr as *const (Client, tokio::runtime::Runtime)) };
-    let url_str = match unsafe { CStr::from_ptr(url).to_str() } {
-        Ok(s) => s,
-        Err(_) => {
-            println!("Invalid URL string");
-            let err_msg = b"Error: Invalid URL string";
-            unsafe { *num_bytes = err_msg.len() as u32; }
-            return bytes_to_c_ptr(err_msg);
-        }
-    };
-    
-    let form_str = match unsafe { CStr::from_ptr(form_data).to_str() } {
-        Ok(s) => s,
-        Err(_) => {
-            println!("Invalid form data string");
-            let err_msg = b"Error: Invalid form data string";
-            unsafe { *num_bytes = err_msg.len() as u32; }
-            return bytes_to_c_ptr(err_msg);
-        }
-    };
-    
-    // Form data is expected to be in the format "key1=value1&key2=value2"
-    let form_data: Vec<(String, String)> = form_str
-        .split('&')
-        .filter_map(|pair| {
-            let mut parts = pair.splitn(2, '=');
-            let key = parts.next()?.to_string();
-            let value = parts.next()?.to_string();
-            Some((key, value))
-        })
-        .collect();
-    
-    let response_result = runtime.block_on(async {
-        let response = match client.post(url_str)
-            .form(&form_data)
-            .send()
-            .await 
-        {
-            Ok(resp) => resp,
-            Err(e) => return Err(format!("Error: {}", e)),
-        };
-        
-        match response.bytes().await {
-            Ok(bytes) => Ok(bytes.to_vec()),
-            Err(e) => Err(format!("Error: {}", e)),
-        }
-    });
-    
-    match response_result {
-        Ok(data) => {
-            unsafe { *num_bytes = data.len() as u32; }
-            bytes_to_c_ptr(&data)
-        }
-        Err(e) => {
-            unsafe { *num_bytes = e.len() as u32; }
-            bytes_to_c_ptr(e.as_bytes())
-        }
-    }
-}
-
-// Get HTTP status code from a response
-#[no_mangle]
-pub extern "C" fn reqwest_get_status(
-    client_ptr: *mut c_void,
-    url: *const c_char,
-) -> i32 {
-    if client_ptr.is_null() {
-        println!("Client pointer is null");
-        return -1;
-    }
-    
-    let (client, runtime) = unsafe { &*(client_ptr as *const (Client, tokio::runtime::Runtime)) };
-    let url_str = match unsafe { CStr::from_ptr(url).to_str() } {
-        Ok(s) => s,
-        Err(_) => {
-            println!("Invalid URL string");
-            return -1;
-        }
-    };
-    
-    let status_code = match runtime.block_on(async {
-        match client.get(url_str).send().await {
-            Ok(resp) => resp.status().as_u16() as i32,
-            Err(_) => -1,
-        }
-    }) {
-        code => code,
-    };
-    
-    status_code
-}
-
-// Add a custom header to the client
-#[no_mangle]
-pub extern "C" fn reqwest_get_with_header(
-    client_ptr: *mut c_void,
-    url: *const c_char,
-    header_name: *const c_char,
-    header_value: *const c_char,
-    num_bytes: *mut u32,
-) -> *mut c_char {
-    if client_ptr.is_null() {
-        println!("Client pointer is null");
-        let err_msg = b"Error: Client pointer is null";
-        unsafe { *num_bytes = err_msg.len() as u32; }
-        return bytes_to_c_ptr(err_msg);
-    }
-    
-    let (client, runtime) = unsafe { &*(client_ptr as *const (Client, tokio::runtime::Runtime)) };
-    let url_str = match unsafe { CStr::from_ptr(url).to_str() } {
-        Ok(s) => s,
-        Err(_) => {
-            println!("Invalid URL string");
-            let err_msg = b"Error: Invalid URL string";
-            unsafe { *num_bytes = err_msg.len() as u32; }
-            return bytes_to_c_ptr(err_msg);
-        }
-    };
-    
-    let header_name_str = match unsafe { CStr::from_ptr(header_name).to_str() } {
-        Ok(s) => s,
-        Err(_) => {
-            println!("Invalid header name string");
-            let err_msg = b"Error: Invalid header name string";
-            unsafe { *num_bytes = err_msg.len() as u32; }
-            return bytes_to_c_ptr(err_msg);
-        }
-    };
-    
-    let header_value_str = match unsafe { CStr::from_ptr(header_value).to_str() } {
-        Ok(s) => s,
-        Err(_) => {
-            println!("Invalid header value string");
-            let err_msg = b"Error: Invalid header value string";
-            unsafe { *num_bytes = err_msg.len() as u32; }
-            return bytes_to_c_ptr(err_msg);
-        }
-    };
-    
-    let response_result = runtime.block_on(async {
-        let response = match client.get(url_str)
-            .header(header_name_str, header_value_str)
-            .send()
-            .await 
-        {
-            Ok(resp) => resp,
-            Err(e) => return Err(format!("Error: {}", e)),
-        };
-        
-        match response.bytes().await {
-            Ok(bytes) => Ok(bytes.to_vec()),
-            Err(e) => Err(format!("Error: {}", e)),
-        }
-    });
-    
-    match response_result {
-        Ok(data) => {
-            unsafe { *num_bytes = data.len() as u32; }
-            bytes_to_c_ptr(&data)
-        }
-        Err(e) => {
-            unsafe { *num_bytes = e.len() as u32; }
-            bytes_to_c_ptr(e.as_bytes())
-        }
-    }
-}
-
-// =========== ASYNC API FUNCTIONS ===========
 
 // Start an asynchronous GET request and return a request ID
 #[no_mangle]
-pub extern "C" fn reqwest_async_get_start(
+pub extern "C" fn async_get_start(
     client_ptr: *mut c_void,
     url: *const c_char,
+    headers_ptr: *mut ReqwestHeaderMap,
     file_path: *const c_char,
 ) -> RequestId {
     if client_ptr.is_null() {
-        println!("Client pointer is null");
         return 0;
     }
-    
-    let (client, runtime) = unsafe { &*(client_ptr as *const (Client, tokio::runtime::Runtime)) };
+
+    let client = unsafe { &*(client_ptr as *const Client) };
     let url_str = match unsafe { CStr::from_ptr(url).to_str() } {
         Ok(s) => s.to_string(),
         Err(_) => {
@@ -527,7 +247,7 @@ pub extern "C" fn reqwest_async_get_start(
             return 0;
         }
     };
-    
+
     let file_path_str = if !file_path.is_null() {
         match unsafe { CStr::from_ptr(file_path).to_str() } {
             Ok(s) if !s.is_empty() => Some(s.to_string()),
@@ -536,126 +256,203 @@ pub extern "C" fn reqwest_async_get_start(
     } else {
         None
     };
-    
+
+    let request_headers = if !headers_ptr.is_null() {
+        unsafe { (*headers_ptr).0.clone() }
+    } else {
+        HeaderMap::new()
+    };
+
     // Create a new request ID
     let request_id = next_request_id();
-    
+
     // Create a progress info struct
     let progress_info = Arc::new(RwLock::new(RequestProgress {
         status: RequestStatus::InProgress,
         total_bytes: None,
         received_bytes: 0,
-        response_data: None,
-        error: None,
+        final_response: None,
     }));
-    
+
     // Store the progress info
     {
         let mut tracker = REQUEST_TRACKER.lock().unwrap();
         tracker.insert(request_id, progress_info.clone());
     }
-    
+
     // Clone the URL for the async task
     let url_clone = url_str.clone();
     let client_clone = client.clone();
-    
+
     // Spawn the async task
-    runtime.spawn(async move {
-        let mut file = if let Some(path) = &file_path_str {
-            match std::fs::File::create(path) {
-                Ok(f) => Some(f),
-                Err(e) => {
-                    let mut progress = progress_info.write().unwrap();
-                    progress.status = RequestStatus::Error;
-                    progress.error = Some(format!("Failed to create file: {}", e));
-                    return;
-                }
-            }
-        } else {
-            None
-        };
+    let request_future = client_clone.get(&url_clone).headers(request_headers).send();
+    async_support::spawn_and_process_request(request_future, progress_info, file_path_str);
 
-        let result = client_clone.get(&url_clone).send().await;
-        
-        match result {
-            Ok(mut resp) => {
-                // Update total bytes if available
-                let total_size = resp.content_length();
-                {
-                    let mut progress = progress_info.write().unwrap();
-                    progress.total_bytes = total_size;
-                }
-                
-                let mut received_data = if file.is_none() {
-                    Some(Vec::with_capacity(total_size.unwrap_or(0) as usize))
-                } else {
-                    None
-                };
-
-                loop {
-                    // Check for cancellation before awaiting the next chunk
-                    if progress_info.read().unwrap().status == RequestStatus::Cancelled {
-                        return;
-                    }
-
-                    match resp.chunk().await {
-                        Ok(Some(chunk)) => {
-                            if let Some(f) = &mut file {
-                                if let Err(e) = f.write_all(&chunk) {
-                                    let mut progress = progress_info.write().unwrap();
-                                    progress.status = RequestStatus::Error;
-                                    progress.error =
-                                        Some(format!("Error writing to file: {}", e));
-                                    break;
-                                }
-                            } else if let Some(data) = &mut received_data {
-                                data.extend_from_slice(&chunk);
-                            }
-
-                            {
-                                let mut progress = progress_info.write().unwrap();
-                                // In case of cancellation, we stop updating progress.
-                                if progress.status == RequestStatus::InProgress {
-                                    progress.received_bytes += chunk.len() as u64;
-                                }
-                            }
-                        }
-                        Ok(None) => {
-                            // Download complete
-                            let mut progress = progress_info.write().unwrap();
-                            if progress.status == RequestStatus::InProgress {
-                                progress.status = RequestStatus::Completed;
-                                progress.response_data = received_data;
-                            }
-                            break;
-                        }
-                        Err(e) => {
-                            // Error during download
-                            let mut progress = progress_info.write().unwrap();
-                            progress.status = RequestStatus::Error;
-                            progress.error = Some(format!("Error reading response: {}", e));
-                            break;
-                        }
-                    }
-                }
-            },
-            Err(e) => {
-                // Update error status
-                let mut progress = progress_info.write().unwrap();
-                progress.status = RequestStatus::Error;
-                progress.error = Some(format!("Error sending request: {}", e));
-            }
-        }
-    });
-    
     request_id
 }
 
-// Check if an async request is complete
+// Start an asynchronous POST request with a JSON body and return a request ID
 #[no_mangle]
-pub extern "C" fn reqwest_async_is_complete(request_id: RequestId) -> bool {
+pub extern "C" fn async_post_json_start(
+    client_ptr: *mut c_void,
+    url: *const c_char,
+    json_body: *const c_char,
+    headers_ptr: *mut ReqwestHeaderMap,
+) -> RequestId {
+    if client_ptr.is_null() || url.is_null() || json_body.is_null() {
+        return 0;
+    }
+
+    let client = unsafe { &*(client_ptr as *const Client) };
+    let url_str = match unsafe { CStr::from_ptr(url).to_str() } {
+        Ok(s) => s.to_string(),
+        Err(_) => return 0,
+    };
+    let json_body_str = match unsafe { CStr::from_ptr(json_body).to_str() } {
+        Ok(s) => s.to_string(),
+        Err(_) => return 0,
+    };
+
+    let request_headers = if !headers_ptr.is_null() {
+        unsafe { (*headers_ptr).0.clone() }
+    } else {
+        HeaderMap::new()
+    };
+
+    let request_id = next_request_id();
+    let progress_info = Arc::new(RwLock::new(RequestProgress {
+        status: RequestStatus::InProgress,
+        total_bytes: None,
+        received_bytes: 0,
+        final_response: None,
+    }));
+
+    {
+        let mut tracker = REQUEST_TRACKER.lock().unwrap();
+        tracker.insert(request_id, progress_info.clone());
+    }
+
+    let url_clone = url_str.clone();
+    let client_clone = client.clone();
+
+    let request_future = client_clone
+        .post(&url_clone)
+        .header("Content-Type", "application/json")
+        .headers(request_headers)
+        .body(json_body_str)
+        .send();
+    async_support::spawn_and_process_request(request_future, progress_info, None);
+
+    request_id
+}
+
+// Start an asynchronous PUT request with a JSON body and return a request ID
+#[no_mangle]
+pub extern "C" fn async_put_json_start(
+    client_ptr: *mut c_void,
+    url: *const c_char,
+    json_body: *const c_char,
+    headers_ptr: *mut ReqwestHeaderMap,
+) -> RequestId {
+    if client_ptr.is_null() || url.is_null() || json_body.is_null() {
+        return 0;
+    }
+
+    let client = unsafe { &*(client_ptr as *const Client) };
+    let url_str = match unsafe { CStr::from_ptr(url).to_str() } {
+        Ok(s) => s.to_string(),
+        Err(_) => return 0,
+    };
+    let json_body_str = match unsafe { CStr::from_ptr(json_body).to_str() } {
+        Ok(s) => s.to_string(),
+        Err(_) => return 0,
+    };
+
+    let request_headers = if !headers_ptr.is_null() {
+        unsafe { (*headers_ptr).0.clone() }
+    } else {
+        HeaderMap::new()
+    };
+
+    let request_id = next_request_id();
+    let progress_info = Arc::new(RwLock::new(RequestProgress {
+        status: RequestStatus::InProgress,
+        total_bytes: None,
+        received_bytes: 0,
+        final_response: None,
+    }));
+
+    {
+        let mut tracker = REQUEST_TRACKER.lock().unwrap();
+        tracker.insert(request_id, progress_info.clone());
+    }
+
+    let url_clone = url_str.clone();
+    let client_clone = client.clone();
+
+    let request_future = client_clone
+        .put(&url_clone)
+        .header("Content-Type", "application/json")
+        .headers(request_headers)
+        .body(json_body_str)
+        .send();
+    async_support::spawn_and_process_request(request_future, progress_info, None);
+
+    request_id
+}
+
+// Start an asynchronous DELETE request and return a request ID
+#[no_mangle]
+pub extern "C" fn async_delete_start(
+    client_ptr: *mut c_void,
+    url: *const c_char,
+    headers_ptr: *mut ReqwestHeaderMap,
+) -> RequestId {
+    if client_ptr.is_null() || url.is_null() {
+        return 0;
+    }
+
+    let client = unsafe { &*(client_ptr as *const Client) };
+    let url_str = match unsafe { CStr::from_ptr(url).to_str() } {
+        Ok(s) => s.to_string(),
+        Err(_) => return 0,
+    };
+
+    let request_headers = if !headers_ptr.is_null() {
+        unsafe { (*headers_ptr).0.clone() }
+    } else {
+        HeaderMap::new()
+    };
+
+    let request_id = next_request_id();
+    let progress_info = Arc::new(RwLock::new(RequestProgress {
+        status: RequestStatus::InProgress,
+        total_bytes: None,
+        received_bytes: 0,
+        final_response: None,
+    }));
+
+    {
+        let mut tracker = REQUEST_TRACKER.lock().unwrap();
+        tracker.insert(request_id, progress_info.clone());
+    }
+
+    let url_clone = url_str.clone();
+    let client_clone = client.clone();
+
+    let request_future = client_clone
+        .delete(&url_clone)
+        .headers(request_headers)
+        .send();
+    async_support::spawn_and_process_request(request_future, progress_info, None);
+
+    request_id
+}
+
+#[no_mangle]
+pub extern "C" fn async_is_complete(request_id: RequestId) -> bool {
     let tracker = REQUEST_TRACKER.lock().unwrap();
-    
+
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
         match progress.status {
@@ -663,43 +460,37 @@ pub extern "C" fn reqwest_async_is_complete(request_id: RequestId) -> bool {
             RequestStatus::InProgress => false,
         }
     } else {
-        // Request ID not found
         true
     }
 }
 
-// Get the progress of an async request (0-100)
 #[no_mangle]
-pub extern "C" fn reqwest_async_get_progress(request_id: RequestId) -> i32 {
+pub extern "C" fn async_get_progress(request_id: RequestId) -> i32 {
     let tracker = REQUEST_TRACKER.lock().unwrap();
-    
+
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
-        
-        // If we have total bytes, calculate percentage
+
         if let Some(total) = progress.total_bytes {
             if total > 0 {
                 return ((progress.received_bytes as f64 / total as f64) * 100.0) as i32;
             }
         }
-        
-        // If request is complete but we didn't have total bytes
+
         match progress.status {
             RequestStatus::Completed => 100,
             RequestStatus::Error | RequestStatus::Cancelled => -1,
             RequestStatus::InProgress => 0,
         }
     } else {
-        // Request ID not found
         -1
     }
 }
 
-// Get the total bytes of an async request. Returns 0 if not available.
 #[no_mangle]
-pub extern "C" fn reqwest_async_get_total_bytes(request_id: RequestId) -> u64 {
+pub extern "C" fn async_get_total_bytes(request_id: RequestId) -> u64 {
     let tracker = REQUEST_TRACKER.lock().unwrap();
-    
+
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
         progress.total_bytes.unwrap_or(0)
@@ -708,11 +499,10 @@ pub extern "C" fn reqwest_async_get_total_bytes(request_id: RequestId) -> u64 {
     }
 }
 
-// Get the received bytes of an async request.
 #[no_mangle]
-pub extern "C" fn reqwest_async_get_received_bytes(request_id: RequestId) -> u64 {
+pub extern "C" fn async_get_received_bytes(request_id: RequestId) -> u64 {
     let tracker = REQUEST_TRACKER.lock().unwrap();
-    
+
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
         progress.received_bytes
@@ -721,72 +511,114 @@ pub extern "C" fn reqwest_async_get_received_bytes(request_id: RequestId) -> u64
     }
 }
 
-// Get the response data from an async request
+// Take the response from a completed request. This consumes the response.
 #[no_mangle]
-pub extern "C" fn reqwest_async_get_response(
-    request_id: RequestId,
-    num_bytes: *mut u32,
-) -> *mut c_char {
-    let tracker = REQUEST_TRACKER.lock().unwrap();
-    
-    if let Some(progress_info) = tracker.get(&request_id) {
-        let progress = progress_info.read().unwrap();
-        
-        match progress.status {
-            RequestStatus::Completed => {
-                if let Some(data) = &progress.response_data {
-                    // Set the length of the response
-                    let return_value_length = data.len() as u32;
-                    unsafe {
-                        *num_bytes = return_value_length;
-                    }
-                    
-                    return bytes_to_c_ptr(data);
-                }
-            },
-            RequestStatus::Error => {
-                if let Some(error) = &progress.error {
-                    // Set the length of the error message
-                    let return_value_length = error.len() as u32;
-                    unsafe {
-                        *num_bytes = return_value_length;
-                    }
-                    
-                    return bytes_to_c_ptr(error.as_bytes());
-                }
-            },
-            _ => {}
+pub extern "C" fn async_take_result(request_id: RequestId) -> *mut Response {
+    let mut tracker = REQUEST_TRACKER.lock().unwrap();
+
+    if let Some(progress_info) = tracker.get_mut(&request_id) {
+        let mut progress = progress_info.write().unwrap();
+        if let Some(response) = progress.final_response.take() {
+            return Box::into_raw(Box::new(response));
         }
     }
-    
-    // Request not found or not complete
-    unsafe {
-        *num_bytes = 0;
-    }
-    bytes_to_c_ptr(b"")
+
+    ptr::null_mut()
 }
 
-// Cancel an async request
+// Get the status code from a response
 #[no_mangle]
-pub extern "C" fn reqwest_async_cancel(request_id: RequestId) -> bool {
+pub extern "C" fn response_status(response_ptr: *const Response) -> u16 {
+    if response_ptr.is_null() {
+        return 0;
+    }
+    let response = unsafe { &*response_ptr };
+    response.status.as_u16()
+}
+
+// Get the response headers
+#[no_mangle]
+pub extern "C" fn response_headers(response_ptr: *const Response) -> *mut ReqwestHeaderMap {
+    if response_ptr.is_null() {
+        return ptr::null_mut();
+    }
+    let response = unsafe { &*response_ptr };
+    Box::into_raw(Box::new(ReqwestHeaderMap(response.headers.clone())))
+}
+
+// Get the response body. Returns the number of bytes written to the buffer.
+#[no_mangle]
+pub extern "C" fn response_body_copy(
+    response_ptr: *const Response,
+    buffer: *mut u8,
+    buffer_len: u32,
+) -> u32 {
+    if response_ptr.is_null() {
+        return 0;
+    }
+    let response = unsafe { &*response_ptr };
+    if let Ok(body) = &response.body {
+        let len = std::cmp::min(body.len(), buffer_len as usize);
+        unsafe {
+            std::ptr::copy_nonoverlapping(body.as_ptr(), buffer, len);
+        }
+        len as u32
+    } else {
+        0
+    }
+}
+
+// Get the error string. Returns the number of bytes written to the buffer.
+#[no_mangle]
+pub extern "C" fn response_error_string_copy(
+    response_ptr: *const Response,
+    buffer: *mut u8,
+    buffer_len: u32,
+) -> u32 {
+    if response_ptr.is_null() {
+        return 0;
+    }
+    let response = unsafe { &*response_ptr };
+    if let Err(error) = &response.body {
+        let error_bytes = error.as_bytes();
+        let len = std::cmp::min(error_bytes.len(), buffer_len as usize);
+        unsafe {
+            std::ptr::copy_nonoverlapping(error_bytes.as_ptr(), buffer, len);
+        }
+        len as u32
+    } else {
+        0
+    }
+}
+
+// Free a response object
+#[no_mangle]
+pub extern "C" fn response_free(response_ptr: *mut Response) {
+    if response_ptr.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = Box::from_raw(response_ptr);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn async_cancel(request_id: RequestId) -> bool {
     let tracker = REQUEST_TRACKER.lock().unwrap();
-    
+
     if let Some(progress_info) = tracker.get(&request_id) {
         let mut progress = progress_info.write().unwrap();
-        
-        // Only cancel if it's still in progress
+
         if progress.status == RequestStatus::InProgress {
             progress.status = RequestStatus::Cancelled;
             return true;
         }
     }
-    
     false
 }
 
-// Clean up an async request and remove it from the tracker
 #[no_mangle]
-pub extern "C" fn reqwest_async_cleanup(request_id: RequestId) {
+pub extern "C" fn async_cleanup(request_id: RequestId) {
     let mut tracker = REQUEST_TRACKER.lock().unwrap();
     tracker.remove(&request_id);
 }
@@ -794,497 +626,9 @@ pub extern "C" fn reqwest_async_cleanup(request_id: RequestId) {
 // exported function that frees the memory allocated for a string
 // this *must* be called for every string returned from a function in this library
 #[no_mangle]
-pub extern "C" fn reqwest_free_memory(s: *mut c_char) {
+pub extern "C" fn free_memory(s: *mut c_char) {
     if s.is_null() {
         return;
     }
     unsafe { libc::free(s as *mut c_void); };
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::ffi::CString;
-    
-    // Test creating a client and making a GET request
-    #[test]
-    fn test_reqwest_get() {
-        // Create a client
-        let client_ptr = reqwest_client_new();
-        assert!(!client_ptr.is_null());
-        
-        // Create a URL string
-        let url = CString::new("https://httpbin.org/get").unwrap();
-        
-        // Make a GET request
-        let mut num_bytes: u32 = 0;
-        let response_ptr = reqwest_get(
-            client_ptr,
-            url.as_ptr(),
-            &mut num_bytes as *mut u32,
-        );
-        
-        // Convert response to Rust string
-        let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
-        
-        // Free the response string
-        reqwest_free_memory(response_ptr);
-        
-        // Close the client
-        reqwest_client_close(client_ptr);
-        
-        // Verify the response contains expected data
-        assert!(response_str.contains("httpbin.org"));
-        assert!(num_bytes > 0);
-    }
-    
-    // Test POST with JSON body
-    #[test]
-    fn test_reqwest_post_json() {
-        // Create a client
-        let client_ptr = reqwest_client_new();
-        assert!(!client_ptr.is_null());
-        
-        // Create a URL string and JSON body
-        let url = CString::new("https://httpbin.org/post").unwrap();
-        let json_body = CString::new(r#"{"name":"test","value":123}"#).unwrap();
-        
-        // Make a POST request
-        let mut num_bytes: u32 = 0;
-        let response_ptr = reqwest_post_json(
-            client_ptr,
-            url.as_ptr(),
-            json_body.as_ptr(),
-            &mut num_bytes as *mut u32,
-        );
-        
-        // Convert response to Rust string
-        let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
-        
-        // Free the response string
-        reqwest_free_memory(response_ptr);
-        
-        // Close the client
-        reqwest_client_close(client_ptr);
-        
-        // Verify the response contains expected data
-        assert!(response_str.contains("test"));
-        assert!(response_str.contains("123"));
-        assert!(num_bytes > 0);
-    }
-    
-    // Test async GET
-    #[test]
-    fn test_reqwest_async_get() {
-        // Create a client
-        let client_ptr = reqwest_client_new();
-        assert!(!client_ptr.is_null());
-        
-        // Create a URL string
-        let url = CString::new("https://httpbin.org/get").unwrap();
-        
-        // Start an async GET request
-        let request_id = reqwest_async_get_start(client_ptr, url.as_ptr(), ptr::null());
-        assert!(request_id > 0);
-        
-        // Wait for the request to complete (with timeout)
-        let start_time = std::time::Instant::now();
-        let mut completed = false;
-        
-        while !completed && start_time.elapsed().as_secs() < 10 {
-            completed = reqwest_async_is_complete(request_id);
-            if !completed {
-                std::thread::sleep(std::time::Duration::from_millis(100));
-            }
-        }
-        
-        assert!(completed, "Request should complete within timeout");
-        
-        // Get the response data
-        let mut num_bytes: u32 = 0;
-        let response_ptr = reqwest_async_get_response(request_id, &mut num_bytes as *mut u32);
-        
-        // Convert response to Rust string
-        let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
-        
-        // Free the response string
-        reqwest_free_memory(response_ptr);
-        
-        // Clean up the request
-        reqwest_async_cleanup(request_id);
-        
-        // Close the client
-        reqwest_client_close(client_ptr);
-        
-        // Verify the response contains expected data
-        assert!(response_str.contains("httpbin.org"), "Response should contain 'httpbin.org' but was: {}", response_str);
-        assert!(num_bytes > 0, "Response should have bytes");
-    }
-
-    // Test async GET to file
-    #[test]
-    fn test_reqwest_async_get_to_file() {
-        // Create a client
-        let client_ptr = reqwest_client_new();
-        assert!(!client_ptr.is_null());
-
-        // Create a URL string
-        let url = CString::new("https://httpbin.org/get").unwrap();
-
-        // Define a file path for the download
-        let file_path = "test_download.json";
-        let file_path_cstr = CString::new(file_path).unwrap();
-
-        // Start an async GET request to file
-        let request_id =
-            reqwest_async_get_start(client_ptr, url.as_ptr(), file_path_cstr.as_ptr());
-        assert!(request_id > 0);
-
-        // Wait for the request to complete (with timeout)
-        let start_time = std::time::Instant::now();
-        let mut completed = false;
-
-        while !completed && start_time.elapsed().as_secs() < 10 {
-            completed = reqwest_async_is_complete(request_id);
-            if !completed {
-                std::thread::sleep(std::time::Duration::from_millis(100));
-            }
-        }
-
-        assert!(completed, "Request should complete within timeout");
-
-        // Get the response data, which should be empty
-        let mut num_bytes: u32 = 0;
-        let response_ptr = reqwest_async_get_response(request_id, &mut num_bytes as *mut u32);
-        let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
-        reqwest_free_memory(response_ptr);
-
-        assert_eq!(num_bytes, 0, "num_bytes should be 0");
-        assert!(
-            response_str.is_empty(),
-            "Response string should be empty"
-        );
-
-        // Verify the file was created and has content
-        let file_content =
-            std::fs::read_to_string(file_path).expect("Should have been able to read the file");
-        assert!(file_content.contains("httpbin.org"));
-
-        // Clean up the request
-        reqwest_async_cleanup(request_id);
-
-        // Clean up the downloaded file
-        std::fs::remove_file(file_path).unwrap();
-
-        // Close the client
-        reqwest_client_close(client_ptr);
-    }
-
-    // Test PUT with JSON body
-    #[test]
-    fn test_reqwest_put_json() {
-        // Create a client
-        let client_ptr = reqwest_client_new();
-        assert!(!client_ptr.is_null());
-
-        // Create a URL string and JSON body
-        let url = CString::new("https://httpbin.org/put").unwrap();
-        let json_body = CString::new(r#"{"name":"test","value":456}"#).unwrap();
-
-        // Make a PUT request
-        let mut num_bytes: u32 = 0;
-        let response_ptr = reqwest_put_json(
-            client_ptr,
-            url.as_ptr(),
-            json_body.as_ptr(),
-            &mut num_bytes as *mut u32,
-        );
-
-        // Convert response to Rust string
-        let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
-
-        // Free the response string
-        reqwest_free_memory(response_ptr);
-
-        // Close the client
-        reqwest_client_close(client_ptr);
-
-        // Verify the response contains expected data
-        assert!(response_str.contains("test"));
-        assert!(response_str.contains("456"));
-        assert!(num_bytes > 0);
-    }
-
-    // Test DELETE request
-    #[test]
-    fn test_reqwest_delete() {
-        // Create a client
-        let client_ptr = reqwest_client_new();
-        assert!(!client_ptr.is_null());
-
-        // Create a URL string
-        let url = CString::new("https://httpbin.org/delete").unwrap();
-
-        // Make a DELETE request
-        let mut num_bytes: u32 = 0;
-        let response_ptr = reqwest_delete(client_ptr, url.as_ptr(), &mut num_bytes as *mut u32);
-
-        // Convert response to Rust string
-        let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
-
-        // Free the response string
-        reqwest_free_memory(response_ptr);
-
-        // Close the client
-        reqwest_client_close(client_ptr);
-
-        // Verify the response contains expected data (httpbin.org/delete returns info about the request)
-        assert!(response_str.contains("httpbin.org/delete"));
-        assert!(num_bytes > 0);
-    }
-
-    // Test POST with form data
-    #[test]
-    fn test_reqwest_post_form() {
-        // Create a client
-        let client_ptr = reqwest_client_new();
-        assert!(!client_ptr.is_null());
-
-        // Create a URL string and form data
-        let url = CString::new("https://httpbin.org/post").unwrap();
-        let form_data = CString::new("key1=value1&key2=value2").unwrap();
-
-        // Make a POST request with form
-        let mut num_bytes: u32 = 0;
-        let response_ptr = reqwest_post_form(
-            client_ptr,
-            url.as_ptr(),
-            form_data.as_ptr(),
-            &mut num_bytes as *mut u32,
-        );
-
-        // Convert response to Rust string
-        let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
-
-        // Free the response string
-        reqwest_free_memory(response_ptr);
-
-        // Close the client
-        reqwest_client_close(client_ptr);
-
-        // Verify the response contains expected data
-        assert!(response_str.contains("key1"));
-        assert!(response_str.contains("value1"));
-        assert!(response_str.contains("key2"));
-        assert!(response_str.contains("value2"));
-        assert!(num_bytes > 0);
-    }
-
-    // Test getting status code
-    #[test]
-    fn test_reqwest_get_status() {
-        // Create a client
-        let client_ptr = reqwest_client_new();
-        assert!(!client_ptr.is_null());
-
-        // Create a URL string
-        let url = CString::new("https://httpbin.org/status/200").unwrap();
-
-        // Get status code
-        let status_code = reqwest_get_status(client_ptr, url.as_ptr());
-
-        // Close the client
-        reqwest_client_close(client_ptr);
-
-        // Verify the status code
-        assert_eq!(status_code, 200);
-    }
-
-    // Test GET with custom header
-    #[test]
-    fn test_reqwest_get_with_header() {
-        // Create a client
-        let client_ptr = reqwest_client_new();
-        assert!(!client_ptr.is_null());
-
-        // Create URL, header name, and header value
-        let url = CString::new("https://httpbin.org/headers").unwrap();
-        let header_name = CString::new("X-My-Header").unwrap();
-        let header_value = CString::new("is-awesome").unwrap();
-
-        // Make a GET request with header
-        let mut num_bytes: u32 = 0;
-        let response_ptr = reqwest_get_with_header(
-            client_ptr,
-            url.as_ptr(),
-            header_name.as_ptr(),
-            header_value.as_ptr(),
-            &mut num_bytes as *mut u32,
-        );
-
-        // Convert response to Rust string
-        let response_str = unsafe { CStr::from_ptr(response_ptr).to_string_lossy().into_owned() };
-
-        // Free the response string
-        reqwest_free_memory(response_ptr);
-
-        // Close the client
-        reqwest_client_close(client_ptr);
-
-        // Verify the response contains the header we sent
-        assert!(response_str.contains("X-My-Header"));
-        assert!(response_str.contains("is-awesome"));
-        assert!(num_bytes > 0);
-    }
-
-    // Test async cancel
-    #[test]
-    fn test_reqwest_async_cancel() {
-        // Create a client
-        let client_ptr = reqwest_client_new();
-        assert!(!client_ptr.is_null());
-
-        // URL that is slow to respond
-        let url = CString::new("https://httpbin.org/delay/5").unwrap();
-
-        // Start an async GET request
-        let request_id = reqwest_async_get_start(client_ptr, url.as_ptr(), ptr::null());
-        assert!(request_id > 0);
-
-        // Cancel the request immediately
-        let cancelled = reqwest_async_cancel(request_id);
-        assert!(cancelled);
-
-        // Wait a bit to ensure cancellation is processed
-        std::thread::sleep(std::time::Duration::from_millis(200));
-
-        // Check that it's complete (due to cancellation)
-        assert!(reqwest_async_is_complete(request_id));
-
-        // Get response, should be empty or indicate cancellation
-        let mut num_bytes: u32 = 0;
-        let response_ptr = reqwest_async_get_response(request_id, &mut num_bytes as *mut u32);
-        assert_eq!(num_bytes, 0);
-        reqwest_free_memory(response_ptr);
-
-        // Clean up
-        reqwest_async_cleanup(request_id);
-        reqwest_client_close(client_ptr);
-    }
-
-    // Test async progress
-    #[test]
-    fn test_reqwest_async_progress() {
-        // Create a client
-        let client_ptr = reqwest_client_new();
-        assert!(!client_ptr.is_null());
-
-        // A URL that streams data, making it good for progress checks
-        let url = CString::new("https://httpbin.org/stream-bytes/102400").unwrap();
-
-        // Start async GET
-        let request_id = reqwest_async_get_start(client_ptr, url.as_ptr(), ptr::null());
-        assert!(request_id > 0);
-
-        let mut last_received = 0;
-
-        // Poll for progress
-        while !reqwest_async_is_complete(request_id) {
-            let received = reqwest_async_get_received_bytes(request_id);
-
-            // httpbin.org/stream-bytes doesn't set Content-Length, so total will be 0 and progress will be 0 until complete.
-            // Let's just check received bytes.
-            assert!(received >= last_received);
-            last_received = received;
-
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        }
-
-        assert!(reqwest_async_get_progress(request_id) == 100);
-        assert!(reqwest_async_get_received_bytes(request_id) > 0);
-        // httpbin.org/stream-bytes doesn't give a content-length, so total will be 0.
-        // But we can check that received bytes is equal to the final response length.
-
-        let last_received_final = reqwest_async_get_received_bytes(request_id);
-        let mut num_bytes: u32 = 0;
-        let response_ptr = reqwest_async_get_response(request_id, &mut num_bytes);
-        assert_eq!(num_bytes as u64, last_received_final);
-        reqwest_free_memory(response_ptr);
-
-        reqwest_async_cleanup(request_id);
-        reqwest_client_close(client_ptr);
-    }
-
-    #[test]
-    fn test_reqwest_async_total_bytes() {
-        // Create a client
-        let client_ptr = reqwest_client_new();
-        assert!(!client_ptr.is_null());
-
-        // This URL should have a content-length header
-        let url = CString::new("https://httpbin.org/image/png").unwrap();
-
-        // Start async GET
-        let request_id = reqwest_async_get_start(client_ptr, url.as_ptr(), ptr::null());
-        assert!(request_id > 0);
-
-        // Wait for headers to be received and total_bytes to be available
-        let start_time = std::time::Instant::now();
-        let mut total_bytes = 0;
-        while total_bytes == 0 && start_time.elapsed().as_secs() < 5 {
-            total_bytes = reqwest_async_get_total_bytes(request_id);
-            std::thread::sleep(std::time::Duration::from_millis(100));
-        }
-
-        assert!(total_bytes > 0, "Total bytes should be greater than 0");
-
-        // Let it finish
-        while !reqwest_async_is_complete(request_id) {
-            std::thread::sleep(std::time::Duration::from_millis(100));
-        }
-
-        let received_bytes = reqwest_async_get_received_bytes(request_id);
-        assert_eq!(
-            total_bytes, received_bytes,
-            "Total bytes should match received bytes on completion"
-        );
-
-        reqwest_async_cleanup(request_id);
-        reqwest_client_close(client_ptr);
-    }
-
-    // Test binary file download
-    #[test]
-    fn test_reqwest_get_binary() {
-        // Create a client
-        let client_ptr = reqwest_client_new();
-        assert!(!client_ptr.is_null());
-        
-        // Create a URL string to a binary file
-        let url = CString::new("https://httpbin.org/image/png").unwrap();
-        
-        // Make a GET request
-        let mut num_bytes: u32 = 0;
-        let response_ptr = reqwest_get(
-            client_ptr,
-            url.as_ptr(),
-            &mut num_bytes as *mut u32,
-        );
-
-        assert!(!response_ptr.is_null(), "Response pointer should not be null");
-        
-        // PNG file signature
-        let png_signature: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
-        let response_slice = unsafe { std::slice::from_raw_parts(response_ptr as *const u8, num_bytes as usize) };
-        
-        // Verify the response starts with PNG signature
-        assert!(num_bytes > 8, "Response should be larger than 8 bytes for a PNG file");
-        assert_eq!(&response_slice[..8], &png_signature, "Response should be a PNG file");
-
-        // Free the response string
-        reqwest_free_memory(response_ptr);
-        
-        // Close the client
-        reqwest_client_close(client_ptr);
-    }
-} 
