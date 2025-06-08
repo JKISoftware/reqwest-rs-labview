@@ -178,7 +178,6 @@
 				<Item Name="Dflt Data Dir.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/file.llb/Dflt Data Dir.vi"/>
 			</Item>
 			<Item Name="lv_reqwest_64.dll" Type="Document" URL="../lv_reqwest_64.dll"/>
-			<Item Name="async_get_response.vi" Type="VI" URL="../Request/async_get_response.vi"/>
 		</Item>
 		<Item Name="Build Specifications" Type="Build"/>
 	</Item>
