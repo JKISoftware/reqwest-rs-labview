@@ -14,10 +14,10 @@
 		<Item Name="read_c_string_at_memory_address.vi" Type="VI" URL="../support/read_c_string_at_memory_address.vi"/>
 		<Item Name="support.read_and_free_array_multiline_string_at_address.vi" Type="VI" URL="../support/support.read_and_free_array_multiline_string_at_address.vi"/>
 		<Item Name="support.read_and_free_string_at_address.vi" Type="VI" URL="../support/support.read_and_free_string_at_address.vi"/>
+		<Item Name="read_c_string_at_memory_address_to_file.vi" Type="VI" URL="../support/read_c_string_at_memory_address_to_file.vi"/>
 	</Item>
 	<Item Name="Client.lvclass" Type="LVClass" URL="../Client/Client.lvclass"/>
+	<Item Name="ClientBuilder.lvclass" Type="LVClass" URL="../ClientBuilder/ClientBuilder.lvclass"/>
+	<Item Name="Headers.lvclass" Type="LVClass" URL="../Headers/Headers.lvclass"/>
 	<Item Name="Request.lvclass" Type="LVClass" URL="../Request/Request.lvclass"/>
-	<Item Name="read_c_string_at_memory_address_to_file.vi" Type="VI" URL="../support/read_c_string_at_memory_address_to_file.vi">
-		<Property Name="NI.LibItem.Scope" Type="Int">2</Property>
-	</Item>
 </Library>
