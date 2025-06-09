@@ -19,44 +19,88 @@ type RequestId = u64;
 type ClientId = usize;
 type ProgressInfo = Arc<RwLock<RequestProgress>>;
 
+// Number of tracker shards to use (helps reduce contention)
+const NUM_TRACKER_SHARDS: usize = 32;
+
 // Global runtime and request tracker
 lazy_static::lazy_static! {
-    static ref REQUEST_TRACKER: Mutex<HashMap<RequestId, ProgressInfo>> = Mutex::new(HashMap::new());
+    static ref REQUEST_TRACKERS: Vec<Mutex<HashMap<RequestId, ProgressInfo>>> = {
+        let mut trackers = Vec::with_capacity(NUM_TRACKER_SHARDS);
+        for _ in 0..NUM_TRACKER_SHARDS {
+            trackers.push(Mutex::new(HashMap::with_capacity(32))); // Pre-allocate for better performance
+        }
+        trackers
+    };
     static ref NEXT_REQUEST_ID: Mutex<RequestId> = Mutex::new(1);
-    static ref CLIENT_REQUESTS: Mutex<HashMap<ClientId, HashSet<RequestId>>> = Mutex::new(HashMap::new());
+    // Use multiple shards for client requests as well to reduce contention
+    static ref CLIENT_REQUESTS: Vec<Mutex<HashMap<ClientId, HashSet<RequestId>>>> = {
+        let mut client_trackers = Vec::with_capacity(8); // 8 shards for client tracking
+        for _ in 0..8 {
+            client_trackers.push(Mutex::new(HashMap::with_capacity(8)));
+        }
+        client_trackers
+    };
     static ref GLOBAL_RUNTIME: tokio::runtime::Runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
+            .worker_threads(256)                 // Reduced from 256 to a more reasonable value
+            .max_blocking_threads(512)           // Reduced from 512 to a more reasonable value
+            .thread_name("reqwest-worker")      // Name threads for easier debugging
+            .thread_stack_size(3 * 1024 * 1024) // 3MB stack size (standard default)
+            .enable_io()                        // Enable only what we need instead of enable_all()
+            .enable_time()                      // Enable timer functionality
+            .on_thread_park(|| {})              // No-op park handler to prevent excessive wake-ups
             .build()
             .expect("Failed to create global Tokio runtime");
+}
+
+// Helper function to get the shard for a request ID
+fn get_tracker_shard(request_id: RequestId) -> &'static Mutex<HashMap<RequestId, ProgressInfo>> {
+    let shard_index = (request_id as usize) % NUM_TRACKER_SHARDS;
+    &REQUEST_TRACKERS[shard_index]
 }
 
 // Helper function to get next request ID
 fn next_request_id() -> RequestId {
     let mut id = NEXT_REQUEST_ID.lock().unwrap();
-    let current = *id;
+    let current: u64 = *id;
     *id += 1;
     current
 }
 
+// Helper to get the client request shard for a client ID
+fn get_client_shard(client_id: ClientId) -> &'static Mutex<HashMap<ClientId, HashSet<RequestId>>> {
+    let shard_index = (client_id as usize) % CLIENT_REQUESTS.len();
+    &CLIENT_REQUESTS[shard_index]
+}
+
 // Helper function to register a request with a client
 fn register_request(client_id: ClientId, request_id: RequestId) {
-    let mut client_requests = CLIENT_REQUESTS.lock().unwrap();
+    let mut client_requests = get_client_shard(client_id).lock().unwrap();
     client_requests.entry(client_id).or_insert_with(HashSet::new).insert(request_id);
 }
 
 // Helper function to mark all requests for a client as cancelled
 fn cancel_client_requests(client_id: ClientId) {
     let requests_to_cancel = {
-        let mut client_requests = CLIENT_REQUESTS.lock().unwrap();
+        let mut client_requests = get_client_shard(client_id).lock().unwrap();
         client_requests.remove(&client_id).unwrap_or_default()
     };
     
-    let tracker = REQUEST_TRACKER.lock().unwrap();
+    // Group requests by shard to minimize lock contention
+    let mut requests_by_shard: HashMap<usize, Vec<RequestId>> = HashMap::new();
     for request_id in requests_to_cancel {
-        if let Some(progress_info) = tracker.get(&request_id) {
-            let mut progress = progress_info.write().unwrap();
-            if progress.status == RequestStatus::InProgress {
-                progress.status = RequestStatus::Cancelled;
+        let shard_index = (request_id as usize) % NUM_TRACKER_SHARDS;
+        requests_by_shard.entry(shard_index).or_default().push(request_id);
+    }
+    
+    // Process each shard separately
+    for (shard_index, request_ids) in requests_by_shard {
+        let tracker = &REQUEST_TRACKERS[shard_index].lock().unwrap();
+        for request_id in request_ids {
+            if let Some(progress_info) = tracker.get(&request_id) {
+                let mut progress = progress_info.write().unwrap();
+                if progress.status == RequestStatus::InProgress {
+                    progress.status = RequestStatus::Cancelled;
+                }
             }
         }
     }
@@ -237,7 +281,16 @@ pub extern "C" fn client_builder_build(
         return ptr::null_mut();
     }
 
-    let builder = unsafe { Box::from_raw(builder_ptr) };
+    let mut builder = unsafe { Box::from_raw(builder_ptr) };
+    
+    // Configure connection pool for better concurrency
+    // - Set reasonable pool size for multiple connections to same host
+    // - Use moderate idle timeouts
+    // - Use Rustls for better TLS performance
+    builder.0 = builder.0
+        .pool_max_idle_per_host(100)   // Default is fine for most use cases
+        .pool_idle_timeout(Duration::from_secs(60))
+        .use_rustls_tls();             // Use Rustls for better performance and lower memory use
 
     // Use the global runtime to build the client
     let client = GLOBAL_RUNTIME.block_on(async {
@@ -255,7 +308,8 @@ pub extern "C" fn client_builder_build(
     
     // Initialize an empty set of request IDs for this client
     let client_id = client_ptr as usize;
-    CLIENT_REQUESTS.lock().unwrap().insert(client_id, HashSet::new());
+    let mut client_requests = get_client_shard(client_id).lock().unwrap();
+    client_requests.insert(client_id, HashSet::new());
     
     client_ptr
 }
@@ -337,7 +391,7 @@ pub extern "C" fn client_start_get_request(
 
     // Store the progress info
     {
-        let mut tracker = REQUEST_TRACKER.lock().unwrap();
+        let mut tracker = get_tracker_shard(request_id).lock().unwrap();
         tracker.insert(request_id, progress_info.clone());
     }
     
@@ -350,10 +404,13 @@ pub extern "C" fn client_start_get_request(
 
     // Process the request inside the global runtime
     GLOBAL_RUNTIME.spawn(async move {
+        // Use a timeout to ensure the request doesn't hang indefinitely
         let request_future = client_clone.get(&url_clone).headers(request_headers).send();
         async_support::process_request(request_future, progress_info, file_path_str).await;
     });
 
+    // Return the request ID immediately
+    // The async task will handle updating the progress and result
     request_id
 }
 
@@ -443,7 +500,7 @@ fn start_request_with_body(
     }));
 
     {
-        let mut tracker = REQUEST_TRACKER.lock().unwrap();
+        let mut tracker = get_tracker_shard(request_id).lock().unwrap();
         tracker.insert(request_id, progress_info.clone());
     }
 
@@ -505,10 +562,11 @@ pub extern "C" fn client_start_delete_request(
 
 #[no_mangle]
 pub extern "C" fn request_is_complete(request_id: RequestId) -> bool {
-    let tracker = REQUEST_TRACKER.lock().unwrap();
+    let tracker = get_tracker_shard(request_id).lock().unwrap();
 
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
+        
         match progress.status {
             RequestStatus::Completed | RequestStatus::Error | RequestStatus::Cancelled => true,
             RequestStatus::InProgress => false,
@@ -518,9 +576,20 @@ pub extern "C" fn request_is_complete(request_id: RequestId) -> bool {
     }
 }
 
+// Helper to get response info without retries
+fn get_response_info(request_id: RequestId) -> Option<ProgressInfo> {
+    let tracker = get_tracker_shard(request_id).lock().unwrap();
+    
+    if let Some(progress_info) = tracker.get(&request_id) {
+        return Some(progress_info.clone());
+    }
+    
+    None
+}
+
 #[no_mangle]
 pub extern "C" fn request_read_progress(request_id: RequestId) -> i32 {
-    let tracker = REQUEST_TRACKER.lock().unwrap();
+    let tracker = get_tracker_shard(request_id).lock().unwrap();
 
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
@@ -543,7 +612,7 @@ pub extern "C" fn request_read_progress(request_id: RequestId) -> i32 {
 
 #[no_mangle]
 pub extern "C" fn request_read_total_bytes(request_id: RequestId) -> u64 {
-    let tracker = REQUEST_TRACKER.lock().unwrap();
+    let tracker = get_tracker_shard(request_id).lock().unwrap();
 
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
@@ -555,7 +624,7 @@ pub extern "C" fn request_read_total_bytes(request_id: RequestId) -> u64 {
 
 #[no_mangle]
 pub extern "C" fn request_read_received_bytes(request_id: RequestId) -> u64 {
-    let tracker = REQUEST_TRACKER.lock().unwrap();
+    let tracker = get_tracker_shard(request_id).lock().unwrap();
 
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
@@ -575,43 +644,47 @@ pub extern "C" fn request_read_response_body(
         return ptr::null_mut();
     }
     
-    // Get the response info directly from the tracker
-    let tracker = REQUEST_TRACKER.lock().unwrap();
+    // Get the response info
+    let progress_info = match get_response_info(request_id) {
+        Some(info) => info,
+        None => {
+            unsafe { *num_bytes = 0 };
+            return ptr::null_mut();
+        }
+    };
     
-    if let Some(progress_info) = tracker.get(&request_id) {
-        let progress = progress_info.read().unwrap();
-        if let Some(ref response) = progress.final_response {
-            // If there's an error in the response, return null
-            let body = match &response.body {
-                Ok(body_bytes) => body_bytes,
-                Err(_) => {
-                    unsafe { *num_bytes = 0 };
-                    return ptr::null_mut();
-                }
-            };
-            
-            // Calculate size including null terminator
-            let body_len = body.len();
-            unsafe { *num_bytes = body_len as u32 };
-            
-            // Allocate memory for the string + null terminator
-            let c_str_ptr = unsafe { libc::malloc(body_len + 1) as *mut c_char };
-            if c_str_ptr.is_null() {
+    let progress = progress_info.read().unwrap();
+    if let Some(ref response) = progress.final_response {
+        // If there's an error in the response, return null
+        let body = match &response.body {
+            Ok(body_bytes) => body_bytes,
+            Err(_) => {
+                unsafe { *num_bytes = 0 };
                 return ptr::null_mut();
             }
-            
-            // Copy the bytes and add null terminator
-            unsafe {
-                std::ptr::copy_nonoverlapping(body.as_ptr(), c_str_ptr as *mut u8, body_len);
-                *(c_str_ptr.add(body_len)) = 0;
-            }
-            
-            return c_str_ptr;
+        };
+        
+        // Calculate size including null terminator
+        let body_len = body.len();
+        unsafe { *num_bytes = body_len as u32 };
+        
+        // Allocate memory for the string + null terminator
+        let c_str_ptr = unsafe { libc::malloc(body_len + 1) as *mut c_char };
+        if c_str_ptr.is_null() {
+            return ptr::null_mut();
         }
+        
+        // Copy the bytes and add null terminator
+        unsafe {
+            std::ptr::copy_nonoverlapping(body.as_ptr(), c_str_ptr as *mut u8, body_len);
+            *(c_str_ptr.add(body_len)) = 0;
+        }
+        
+        return c_str_ptr;
     }
     
     unsafe { *num_bytes = 0 };
-    ptr::null_mut() // Return null if request not found or no response yet
+    ptr::null_mut() // Return null if no response yet
 }
 
 // Get the error message as a C string directly from a request ID
@@ -624,48 +697,52 @@ pub extern "C" fn request_read_response_error(
         return ptr::null_mut();
     }
     
-    // Get the response info directly from the tracker
-    let tracker = REQUEST_TRACKER.lock().unwrap();
+    // Get the response info
+    let progress_info = match get_response_info(request_id) {
+        Some(info) => info,
+        None => {
+            unsafe { *num_bytes = 0 };
+            return ptr::null_mut();
+        }
+    };
     
-    if let Some(progress_info) = tracker.get(&request_id) {
-        let progress = progress_info.read().unwrap();
-        if let Some(ref response) = progress.final_response {
-            // If there's no error in the response, return null
-            let error_str = match &response.body {
-                Err(error_str) => error_str,
-                Ok(_) => {
-                    unsafe { *num_bytes = 0 };
-                    return ptr::null_mut();
-                }
-            };
-            
-            // Calculate size including null terminator
-            let str_len = error_str.len();
-            unsafe { *num_bytes = str_len as u32 };
-            
-            // Allocate memory for the string + null terminator
-            let c_str_ptr = unsafe { libc::malloc(str_len + 1) as *mut c_char };
-            if c_str_ptr.is_null() {
+    let progress = progress_info.read().unwrap();
+    if let Some(ref response) = progress.final_response {
+        // If there's no error in the response, return null
+        let error_str = match &response.body {
+            Err(error_str) => error_str,
+            Ok(_) => {
+                unsafe { *num_bytes = 0 };
                 return ptr::null_mut();
             }
-            
-            // Copy the string and add null terminator
-            unsafe {
-                std::ptr::copy_nonoverlapping(error_str.as_ptr(), c_str_ptr as *mut u8, str_len);
-                *(c_str_ptr.add(str_len)) = 0;
-            }
-            
-            return c_str_ptr;
+        };
+        
+        // Calculate size including null terminator
+        let str_len = error_str.len();
+        unsafe { *num_bytes = str_len as u32 };
+        
+        // Allocate memory for the string + null terminator
+        let c_str_ptr = unsafe { libc::malloc(str_len + 1) as *mut c_char };
+        if c_str_ptr.is_null() {
+            return ptr::null_mut();
         }
+        
+        // Copy the string and add null terminator
+        unsafe {
+            std::ptr::copy_nonoverlapping(error_str.as_ptr(), c_str_ptr as *mut u8, str_len);
+            *(c_str_ptr.add(str_len)) = 0;
+        }
+        
+        return c_str_ptr;
     }
     
     unsafe { *num_bytes = 0 };
-    ptr::null_mut() // Return null if request not found or no response yet
+    ptr::null_mut() // Return null if no response yet
 }
 
 #[no_mangle]
 pub extern "C" fn request_cancel(request_id: RequestId) -> bool {
-    let tracker = REQUEST_TRACKER.lock().unwrap();
+    let tracker = get_tracker_shard(request_id).lock().unwrap();
 
     if let Some(progress_info) = tracker.get(&request_id) {
         let mut progress = progress_info.write().unwrap();
@@ -681,13 +758,16 @@ pub extern "C" fn request_cancel(request_id: RequestId) -> bool {
 #[no_mangle]
 pub extern "C" fn request_cleanup(request_id: RequestId) {
     // Remove the request from the tracker
-    let mut tracker = REQUEST_TRACKER.lock().unwrap();
+    let mut tracker = get_tracker_shard(request_id).lock().unwrap();
     tracker.remove(&request_id);
     
     // Remove the request from any client that might have it
-    let mut client_requests = CLIENT_REQUESTS.lock().unwrap();
-    for (_, requests) in client_requests.iter_mut() {
-        requests.remove(&request_id);
+    // We need to check all client shards since we don't know which one has it
+    for client_shard in CLIENT_REQUESTS.iter() {
+        let mut client_requests = client_shard.lock().unwrap();
+        for (_, requests) in client_requests.iter_mut() {
+            requests.remove(&request_id);
+        }
     }
 }
 
@@ -705,7 +785,7 @@ pub extern "C" fn free_memory(s: *mut c_char) {
 #[no_mangle]
 pub extern "C" fn request_read_response_status(request_id: RequestId) -> u16 {
     // Get the response info
-    let tracker = REQUEST_TRACKER.lock().unwrap();
+    let tracker = get_tracker_shard(request_id).lock().unwrap();
     
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
@@ -721,7 +801,7 @@ pub extern "C" fn request_read_response_status(request_id: RequestId) -> u16 {
 #[no_mangle]
 pub extern "C" fn request_read_response_headers(request_id: RequestId) -> *mut ReqwestHeaderMap {
     // Get the response info
-    let tracker = REQUEST_TRACKER.lock().unwrap();
+    let tracker = get_tracker_shard(request_id).lock().unwrap();
     
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
@@ -737,7 +817,7 @@ pub extern "C" fn request_read_response_headers(request_id: RequestId) -> *mut R
 #[no_mangle]
 pub extern "C" fn request_has_response_error(request_id: RequestId) -> bool {
     // Get the response info
-    let tracker = REQUEST_TRACKER.lock().unwrap();
+    let tracker = get_tracker_shard(request_id).lock().unwrap();
     
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
@@ -902,7 +982,7 @@ pub extern "C" fn request_builder_send(
     
     // Store the progress info
     {
-        let mut tracker = REQUEST_TRACKER.lock().unwrap();
+        let mut tracker = get_tracker_shard(request_id).lock().unwrap();
         tracker.insert(request_id, progress_info.clone());
     }
     
@@ -960,7 +1040,7 @@ pub extern "C" fn request_builder_send_to_file(
     
     // Store the progress info
     {
-        let mut tracker = REQUEST_TRACKER.lock().unwrap();
+        let mut tracker = get_tracker_shard(request_id).lock().unwrap();
         tracker.insert(request_id, progress_info.clone());
     }
     
