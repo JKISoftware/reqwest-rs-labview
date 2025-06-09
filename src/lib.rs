@@ -1,7 +1,7 @@
 use libc::c_char;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
-    Client, ClientBuilder, StatusCode,
+    Client, ClientBuilder, StatusCode, RequestBuilder,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -10,6 +10,7 @@ use std::{
     sync::{Arc, Mutex, RwLock},
     time::Duration,
 };
+use serde_json;
 
 mod async_support;
 
@@ -356,30 +357,13 @@ pub extern "C" fn client_start_get_request(
     request_id
 }
 
-// Start an asynchronous DELETE request and return a request ID
-#[no_mangle]
-pub extern "C" fn client_start_delete_request(
-    client_ptr: *mut c_void,
-    url: *const c_char,
-    body: *const c_char,
-    headers_ptr: *mut ReqwestHeaderMap,
-) -> RequestId {
-    start_request_with_body(
-        client_ptr,
-        url,
-        body,
-        headers_ptr,
-        reqwest::Method::DELETE,
-    )
-}
-
 // A generic request function for methods with bodies
 fn start_request_with_body(
     client_ptr: *mut c_void,
     url: *const c_char,
     body: *const c_char,
     headers_ptr: *mut ReqwestHeaderMap,
-    method: reqwest::Method,
+    method: u8,
 ) -> RequestId {
     if client_ptr.is_null() || url.is_null() {
         return 0;
@@ -407,6 +391,29 @@ fn start_request_with_body(
         HeaderMap::new()
     };
 
+    // Convert method integer to reqwest::Method
+    let reqwest_method = if method == HTTP_METHOD_GET {
+        reqwest::Method::GET
+    } else if method == HTTP_METHOD_POST {
+        reqwest::Method::POST
+    } else if method == HTTP_METHOD_PUT {
+        reqwest::Method::PUT
+    } else if method == HTTP_METHOD_DELETE {
+        reqwest::Method::DELETE
+    } else if method == HTTP_METHOD_HEAD {
+        reqwest::Method::HEAD
+    } else if method == HTTP_METHOD_OPTIONS {
+        reqwest::Method::OPTIONS
+    } else if method == HTTP_METHOD_CONNECT {
+        reqwest::Method::CONNECT
+    } else if method == HTTP_METHOD_PATCH {
+        reqwest::Method::PATCH
+    } else if method == HTTP_METHOD_TRACE {
+        reqwest::Method::TRACE
+    } else {
+        return 0; // Invalid method
+    };
+
     let request_id = next_request_id();
     let progress_info = Arc::new(RwLock::new(RequestProgress {
         status: RequestStatus::InProgress,
@@ -427,7 +434,7 @@ fn start_request_with_body(
 
     GLOBAL_RUNTIME.spawn(async move {
         let request_future = client_clone
-            .request(method, &url_clone)
+            .request(reqwest_method, &url_clone)
             .headers(request_headers)
             .body(body_str)
             .send();
@@ -445,7 +452,7 @@ pub extern "C" fn client_start_post_request(
     body: *const c_char,
     headers_ptr: *mut ReqwestHeaderMap,
 ) -> RequestId {
-    start_request_with_body(client_ptr, url, body, headers_ptr, reqwest::Method::POST)
+    start_request_with_body(client_ptr, url, body, headers_ptr, HTTP_METHOD_POST)
 }
 
 // Start an asynchronous PUT request and return a request ID
@@ -456,7 +463,24 @@ pub extern "C" fn client_start_put_request(
     body: *const c_char,
     headers_ptr: *mut ReqwestHeaderMap,
 ) -> RequestId {
-    start_request_with_body(client_ptr, url, body, headers_ptr, reqwest::Method::PUT)
+    start_request_with_body(client_ptr, url, body, headers_ptr, HTTP_METHOD_PUT)
+}
+
+// Start an asynchronous DELETE request and return a request ID
+#[no_mangle]
+pub extern "C" fn client_start_delete_request(
+    client_ptr: *mut c_void,
+    url: *const c_char,
+    body: *const c_char,
+    headers_ptr: *mut ReqwestHeaderMap,
+) -> RequestId {
+    start_request_with_body(
+        client_ptr,
+        url,
+        body,
+        headers_ptr,
+        HTTP_METHOD_DELETE,
+    )
 }
 
 #[no_mangle]
@@ -752,4 +776,474 @@ pub extern "C" fn request_has_response_error(request_id: RequestId) -> bool {
     }
     
     false // Return false if request not found or no response yet
+}
+
+// Wrapper for the reqwest RequestBuilder
+pub struct ReqwestRequestBuilder {
+    builder: Option<RequestBuilder>,
+    client_id: ClientId,
+}
+
+impl ReqwestRequestBuilder {
+    // Helper method to take the builder out, apply a function, and put it back
+    fn with_builder<F>(&mut self, f: F) -> bool
+    where
+        F: FnOnce(RequestBuilder) -> RequestBuilder,
+    {
+        if let Some(builder) = self.builder.take() {
+            self.builder = Some(f(builder));
+            true
+        } else {
+            false
+        }
+    }
+}
+
+// HTTP method constants (internal use only)
+// These values should match the enum values defined in LabVIEW
+// 1: GET
+// 2: POST
+// 3: PUT
+// 4: DELETE
+// 5: HEAD
+// 6: OPTIONS
+// 7: CONNECT
+// 8: PATCH
+// 9: TRACE
+const HTTP_METHOD_GET: u8 = 1;
+const HTTP_METHOD_POST: u8 = 2;
+const HTTP_METHOD_PUT: u8 = 3;
+const HTTP_METHOD_DELETE: u8 = 4;
+const HTTP_METHOD_HEAD: u8 = 5;
+const HTTP_METHOD_OPTIONS: u8 = 6;
+const HTTP_METHOD_CONNECT: u8 = 7;
+const HTTP_METHOD_PATCH: u8 = 8;
+const HTTP_METHOD_TRACE: u8 = 9;
+
+// Create a request builder with specified HTTP method
+// method: HTTP method as an integer (1=GET, 2=POST, 3=PUT, 4=DELETE, etc.)
+#[no_mangle]
+pub extern "C" fn client_new_request_builder(
+    client_ptr: *mut c_void,
+    method: u8,
+    url: *const c_char,
+) -> *mut ReqwestRequestBuilder {
+    if client_ptr.is_null() || url.is_null() {
+        return ptr::null_mut();
+    }
+
+    let client = unsafe { &*(client_ptr as *const ReqwestClient) };
+    let client_id = client_ptr as usize;
+    
+    let url_str = match unsafe { CStr::from_ptr(url).to_str() } {
+        Ok(s) => s,
+        Err(_) => return ptr::null_mut(),
+    };
+
+    // Convert method integer to reqwest::Method
+    let reqwest_method = if method == HTTP_METHOD_GET {
+        reqwest::Method::GET
+    } else if method == HTTP_METHOD_POST {
+        reqwest::Method::POST
+    } else if method == HTTP_METHOD_PUT {
+        reqwest::Method::PUT
+    } else if method == HTTP_METHOD_DELETE {
+        reqwest::Method::DELETE
+    } else if method == HTTP_METHOD_HEAD {
+        reqwest::Method::HEAD
+    } else if method == HTTP_METHOD_OPTIONS {
+        reqwest::Method::OPTIONS
+    } else if method == HTTP_METHOD_CONNECT {
+        reqwest::Method::CONNECT
+    } else if method == HTTP_METHOD_PATCH {
+        reqwest::Method::PATCH
+    } else if method == HTTP_METHOD_TRACE {
+        reqwest::Method::TRACE
+    } else {
+        return ptr::null_mut(); // Invalid method
+    };
+
+    let request_builder = client.0.request(reqwest_method, url_str);
+    
+    Box::into_raw(Box::new(ReqwestRequestBuilder {
+        builder: Some(request_builder),
+        client_id,
+    }))
+}
+
+
+// Free a request builder without sending
+#[no_mangle]
+pub extern "C" fn request_builder_free(builder_ptr: *mut ReqwestRequestBuilder) {
+    if !builder_ptr.is_null() {
+        unsafe { let _ = Box::from_raw(builder_ptr); }
+    }
+}
+
+// Set request timeout
+#[no_mangle]
+pub extern "C" fn request_builder_timeout(
+    builder_ptr: *mut ReqwestRequestBuilder,
+    timeout_secs: u64,
+) -> bool {
+    if builder_ptr.is_null() {
+        return false;
+    }
+    
+    let builder = unsafe { &mut *builder_ptr };
+    builder.with_builder(|b| b.timeout(Duration::from_secs(timeout_secs)))
+}
+
+// Set request headers
+#[no_mangle]
+pub extern "C" fn request_builder_headers(
+    builder_ptr: *mut ReqwestRequestBuilder,
+    headers_ptr: *mut ReqwestHeaderMap,
+) -> bool {
+    if builder_ptr.is_null() {
+        return false;
+    }
+    
+    let headers = if headers_ptr.is_null() {
+        HeaderMap::new()
+    } else {
+        unsafe { (*headers_ptr).0.clone() }
+    };
+    
+    let builder = unsafe { &mut *builder_ptr };
+    builder.with_builder(|b| b.headers(headers))
+}
+
+// Set request body
+#[no_mangle]
+pub extern "C" fn request_builder_body(
+    builder_ptr: *mut ReqwestRequestBuilder,
+    body: *const c_char,
+) -> bool {
+    if builder_ptr.is_null() {
+        return false;
+    }
+    
+    let body_str = if !body.is_null() {
+        match unsafe { CStr::from_ptr(body).to_str() } {
+            Ok(s) => s,
+            Err(_) => return false,
+        }
+    } else {
+        ""
+    };
+    
+    let builder = unsafe { &mut *builder_ptr };
+    builder.with_builder(|b| b.body(body_str.to_string()))
+}
+
+// Send the request and get a request ID
+#[no_mangle]
+pub extern "C" fn request_builder_send(
+    builder_ptr: *mut ReqwestRequestBuilder,
+) -> RequestId {
+    if builder_ptr.is_null() {
+        return 0;
+    }
+    
+    // Get the builder
+    let builder = unsafe { &mut *builder_ptr };
+    let client_id = builder.client_id;
+    
+    // Take the builder
+    let request_builder = if let Some(b) = builder.builder.take() {
+        b
+    } else {
+        return 0;
+    };
+    
+    // Create a new request ID
+    let request_id = next_request_id();
+    
+    // Create progress tracking
+    let progress_info = Arc::new(RwLock::new(RequestProgress {
+        status: RequestStatus::InProgress,
+        total_bytes: None,
+        received_bytes: 0,
+        final_response: None,
+    }));
+    
+    // Store the progress info
+    {
+        let mut tracker = REQUEST_TRACKER.lock().unwrap();
+        tracker.insert(request_id, progress_info.clone());
+    }
+    
+    // Register this request with the client
+    register_request(client_id, request_id);
+    
+    // Use the global runtime to process the request
+    let progress_info_clone = progress_info.clone();
+    GLOBAL_RUNTIME.spawn(async move {
+        // Get the future within the Tokio context
+        let request_future = request_builder.send();
+        async_support::process_request(request_future, progress_info_clone, None).await;
+    });
+    
+    request_id
+}
+
+// Send the request with a file download path and get a request ID
+#[no_mangle]
+pub extern "C" fn request_builder_send_to_file(
+    builder_ptr: *mut ReqwestRequestBuilder,
+    file_path: *const c_char,
+) -> RequestId {
+    if builder_ptr.is_null() || file_path.is_null() {
+        return 0;
+    }
+    
+    // Extract the file path
+    let file_path_str = match unsafe { CStr::from_ptr(file_path).to_str() } {
+        Ok(s) if !s.is_empty() => Some(s.to_string()),
+        _ => return 0,
+    };
+    
+    // Get the builder
+    let builder = unsafe { &mut *builder_ptr };
+    let client_id = builder.client_id;
+    
+    // Take the builder
+    let request_builder = if let Some(b) = builder.builder.take() {
+        b
+    } else {
+        return 0;
+    };
+    
+    // Create a new request ID
+    let request_id = next_request_id();
+    
+    // Create progress tracking
+    let progress_info = Arc::new(RwLock::new(RequestProgress {
+        status: RequestStatus::InProgress,
+        total_bytes: None,
+        received_bytes: 0,
+        final_response: None,
+    }));
+    
+    // Store the progress info
+    {
+        let mut tracker = REQUEST_TRACKER.lock().unwrap();
+        tracker.insert(request_id, progress_info.clone());
+    }
+    
+    // Register this request with the client
+    register_request(client_id, request_id);
+    
+    // Use the global runtime to process the request
+    let progress_info_clone = progress_info.clone();
+    let file_path_clone = file_path_str.clone();
+    GLOBAL_RUNTIME.spawn(async move {
+        // Get the future within the Tokio context
+        let request_future = request_builder.send();
+        async_support::process_request(request_future, progress_info_clone, file_path_clone).await;
+    });
+    
+    request_id
+}
+
+// Add a header to the request
+#[no_mangle]
+pub extern "C" fn request_builder_header(
+    builder_ptr: *mut ReqwestRequestBuilder,
+    key: *const c_char,
+    value: *const c_char,
+) -> bool {
+    if builder_ptr.is_null() || key.is_null() || value.is_null() {
+        return false;
+    }
+
+    let (key_str, value_str) = unsafe {
+        let key_cstr = CStr::from_ptr(key);
+        let value_cstr = CStr::from_ptr(value);
+        (
+            key_cstr.to_str().unwrap_or_default(),
+            value_cstr.to_str().unwrap_or_default(),
+        )
+    };
+
+    if key_str.is_empty() {
+        return false;
+    }
+
+    let header_name = match HeaderName::from_bytes(key_str.as_bytes()) {
+        Ok(name) => name,
+        Err(_) => return false,
+    };
+
+    let header_value = match HeaderValue::from_str(value_str) {
+        Ok(val) => val,
+        Err(_) => return false,
+    };
+
+    let builder = unsafe { &mut *builder_ptr };
+    builder.with_builder(|b| b.header(header_name, header_value))
+}
+
+// Set query parameters
+#[no_mangle]
+pub extern "C" fn request_builder_query(
+    builder_ptr: *mut ReqwestRequestBuilder,
+    key: *const c_char,
+    value: *const c_char,
+) -> bool {
+    if builder_ptr.is_null() || key.is_null() || value.is_null() {
+        return false;
+    }
+
+    let (key_str, value_str) = unsafe {
+        let key_cstr = CStr::from_ptr(key);
+        let value_cstr = CStr::from_ptr(value);
+        (
+            key_cstr.to_str().unwrap_or_default(),
+            value_cstr.to_str().unwrap_or_default(),
+        )
+    };
+
+    if key_str.is_empty() {
+        return false;
+    }
+
+    let builder = unsafe { &mut *builder_ptr };
+    builder.with_builder(|b| {
+        // Create a simple query param
+        let query = [(key_str, value_str)];
+        b.query(&query)
+    })
+}
+
+// Set basic authentication
+#[no_mangle]
+pub extern "C" fn request_builder_basic_auth(
+    builder_ptr: *mut ReqwestRequestBuilder,
+    username: *const c_char,
+    password: *const c_char,
+) -> bool {
+    if builder_ptr.is_null() || username.is_null() {
+        return false;
+    }
+
+    let username_str = unsafe {
+        match CStr::from_ptr(username).to_str() {
+            Ok(s) => s,
+            Err(_) => return false,
+        }
+    };
+
+    let password_str = if !password.is_null() {
+        match unsafe { CStr::from_ptr(password).to_str() } {
+            Ok(s) => Some(s),
+            Err(_) => return false,
+        }
+    } else {
+        None
+    };
+
+    let builder = unsafe { &mut *builder_ptr };
+    builder.with_builder(|b| {
+        if let Some(pwd) = password_str {
+            b.basic_auth(username_str, Some(pwd))
+        } else {
+            b.basic_auth(username_str, Option::<&str>::None)
+        }
+    })
+}
+
+// Set bearer authentication
+#[no_mangle]
+pub extern "C" fn request_builder_bearer_auth(
+    builder_ptr: *mut ReqwestRequestBuilder,
+    token: *const c_char,
+) -> bool {
+    if builder_ptr.is_null() || token.is_null() {
+        return false;
+    }
+
+    let token_str = unsafe {
+        match CStr::from_ptr(token).to_str() {
+            Ok(s) => s,
+            Err(_) => return false,
+        }
+    };
+
+    let builder = unsafe { &mut *builder_ptr };
+    builder.with_builder(|b| b.bearer_auth(token_str))
+}
+
+// Set JSON body (convenience method that sets content-type header too)
+#[no_mangle]
+pub extern "C" fn request_builder_json(
+    builder_ptr: *mut ReqwestRequestBuilder,
+    json: *const c_char,
+) -> bool {
+    if builder_ptr.is_null() || json.is_null() {
+        return false;
+    }
+
+    let json_str = unsafe {
+        match CStr::from_ptr(json).to_str() {
+            Ok(s) => s,
+            Err(_) => return false,
+        }
+    };
+
+    // Create a serde_json::Value from the JSON string
+    let json_value = match serde_json::from_str::<serde_json::Value>(json_str) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+
+    let builder = unsafe { &mut *builder_ptr };
+    builder.with_builder(|b| b.json(&json_value))
+}
+
+// Set a request-specific connect timeout
+#[no_mangle]
+pub extern "C" fn request_builder_connect_timeout(
+    builder_ptr: *mut ReqwestRequestBuilder,
+    timeout_secs: u64,
+) -> bool {
+    if builder_ptr.is_null() {
+        return false;
+    }
+    
+    let builder = unsafe { &mut *builder_ptr };
+    builder.with_builder(|b| b.timeout(Duration::from_secs(timeout_secs)))
+}
+
+// Set a form parameter
+#[no_mangle]
+pub extern "C" fn request_builder_form(
+    builder_ptr: *mut ReqwestRequestBuilder,
+    key: *const c_char,
+    value: *const c_char,
+) -> bool {
+    if builder_ptr.is_null() || key.is_null() || value.is_null() {
+        return false;
+    }
+
+    let (key_str, value_str) = unsafe {
+        let key_cstr = CStr::from_ptr(key);
+        let value_cstr = CStr::from_ptr(value);
+        (
+            key_cstr.to_str().unwrap_or_default(),
+            value_cstr.to_str().unwrap_or_default(),
+        )
+    };
+
+    if key_str.is_empty() {
+        return false;
+    }
+
+    let builder = unsafe { &mut *builder_ptr };
+    builder.with_builder(|b| {
+        // Create a simple form param
+        let form = [(key_str, value_str)];
+        b.form(&form)
+    })
 }

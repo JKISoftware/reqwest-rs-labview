@@ -8,4 +8,5 @@
 	<Item Name="test_client_builder_configured.vi" Type="VI" URL="../test_client_builder_configured.vi"/>
 	<Item Name="test_full_flow.vi" Type="VI" URL="../test_full_flow.vi"/>
 	<Item Name="test_header_map.vi" Type="VI" URL="../test_header_map.vi"/>
+	<Item Name="test_request_builder_api.vi" Type="VI" URL="../test_request_builder_api.vi"/>
 </Library>
