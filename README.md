@@ -4,12 +4,9 @@ A LabVIEW HTTP client that calls a DLL-wrapper around the [reqwest](https://crat
 
 It (`reqwest-rs-labview`) was originally built to meet the following requirements:
 
-- Asynchronous -- ability to support concurrent downloads/requests
-- Fast -- should be performant
-- Cross-platform -- can run on any platform supported by LabVIEW
-- Maintainable -- engineers using the LabVIEW code would be able to also maintain the DLL codebase.
-
-> Note: Other libraries were considered (like [ureq](https://crates.io/crates/ureq)) but they didn't tik all the boxes because they were either too low-level, not asynchronous, etc.
+- **Asynchronous & Fast** - library supports concurrent downloads/requests to happen in parallel and should be performant
+- **Cross-platform** - library can compile/run on all platform supported by LabVIEW
+- **Maintainable** - engineers using the LabVIEW code with some text-based programming experience should be able to understand and maintain the DLL codebase.
 
 ## Design Strategy
 
