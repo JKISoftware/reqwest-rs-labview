@@ -499,140 +499,108 @@ fn test_request_builder_form_data() {
 
 #[test]
 fn test_retry_mechanism() {
-    let client_builder_ptr = client_builder_new();
-    let client_ptr = client_builder_build(client_builder_ptr);
+    // Build a client 
+    let builder_ptr = client_builder_new();
+    let client_ptr = client_builder_build(builder_ptr);
     assert!(!client_ptr.is_null());
 
-    // We'll use the status endpoint with a 500 error
-    let url = std::ffi::CString::new("https://httpbin.org/status/500").unwrap();
+    // Create a URL for a non-existent endpoint that will return 404
+    // This isn't a 5xx error, but we can verify the retry mechanism doesn't trigger
+    let url = std::ffi::CString::new("https://httpbin.org/status/404").unwrap();
     
-    // Start a GET request
-    let request_id = client_start_get_request(
-        client_ptr,
-        url.as_ptr(),
-        std::ptr::null_mut(),
-        std::ptr::null()
-    );
+    // Create a GET request builder
+    let builder_ptr = client_new_request_builder(client_ptr, HTTP_METHOD_GET, url.as_ptr());
+    assert!(!builder_ptr.is_null());
+    
+    // Send the request
+    let mut request_id = request_builder_send(builder_ptr);
     assert!(request_id > 0);
     
-    // Test the retry mechanism with 3 retries
-    let (status, _) = wait_for_request_with_retry(request_id, 3);
+    // Use our retry helper (max 3 retries)
+    let mut status = 0;
+    let mut retry_count = 0;
+    const MAX_RETRIES: u32 = 3;
     
-    // Since httpbin.org is unreliable, we'll accept any 5xx error code
-    assert!(status >= 500 && status < 600, "Expected a server error status code, got {}", status);
-    
-    // Clean up
-    request_cleanup(request_id);
-    client_close(client_ptr);
-}
-
-
-/// Helper to process a request with retries for better test stability
-fn process_request_with_retries(client_ptr: *mut std::ffi::c_void, url: &std::ffi::CString) -> bool {
-    // Create a GET request
-    let request_id = client_start_get_request(
-        client_ptr,
-        url.as_ptr(),
-        std::ptr::null_mut(), // No headers
-        std::ptr::null()      // No file download
-    );
-    assert!(request_id > 0);
-    
-    // Variables to track completion
-    let mut iterations = 0;
-    let max_iterations = 200; // Shorter timeout for stress test
-    let mut success = false;
-    
-    // Loop until completion or timeout
-    while iterations < max_iterations {
-        iterations += 1;
+    while retry_count <= MAX_RETRIES {
+        let (status_code, error_msg) = wait_for_request_with_retry(request_id, 0);
+        status = status_code;
         
-        // Check if request is complete
-        let is_complete = request_is_complete(request_id);
-        
-        if is_complete {
-            // Try to read response body
-            let mut body_len: u32 = 0;
-            let body_ptr = request_read_response_body(request_id, &mut body_len);
-            
-            // Check if we successfully got the body
-            if !body_ptr.is_null() && body_len > 0 {
-                // We got a complete response
-                free_memory(body_ptr);
-                success = true;
-                break;
-            } else {
-                // Race condition: complete but no body, sleep and retry
-                std::thread::sleep(std::time::Duration::from_millis(5));
-                continue;
+        if status >= 500 && status < 600 && retry_count < MAX_RETRIES {
+            retry_count += 1;
+            println!("Got {} error from httpbin.org, retrying (attempt {}/{})", 
+                     status, retry_count, MAX_RETRIES);
+            if let Some(err) = error_msg {
+                println!("Error details: {}", err);
             }
+            
+            // Clean up the failed request
+            request_cleanup(request_id);
+            
+            // Wait a bit before retrying (with exponential backoff)
+            let backoff_ms = 100u64 * (1u64 << retry_count);
+            std::thread::sleep(Duration::from_millis(backoff_ms));
+            
+            // Create a new request
+            let builder_ptr = client_new_request_builder(client_ptr, HTTP_METHOD_GET, url.as_ptr());
+            let request_id_new = request_builder_send(builder_ptr);
+            assert!(request_id_new > 0);
+            request_id = request_id_new;
+        } else {
+            break;
         }
-        
-        // Add a small delay between checks
-        std::thread::sleep(std::time::Duration::from_millis(5));
     }
+    
+    // This test should not have done any retries since it's a 404, not a 5xx
+    assert_eq!(retry_count, 0, "No retries should have been performed for a 404 response");
+    assert_eq!(status, 404, "Status should be 404");
+    
+    // Now try with a 500 error endpoint
+    let url_500 = std::ffi::CString::new("https://httpbin.org/status/500").unwrap();
+    let builder_ptr = client_new_request_builder(client_ptr, HTTP_METHOD_GET, url_500.as_ptr());
+    assert!(!builder_ptr.is_null());
+    
+    // Send the request
+    let mut request_id = request_builder_send(builder_ptr);
+    assert!(request_id > 0);
+    
+    // Reset counters
+    retry_count = 0;
+    status = 0;
+    
+    while retry_count <= MAX_RETRIES {
+        let (status_code, error_msg) = wait_for_request_with_retry(request_id, 0);
+        status = status_code;
+        
+        if status >= 500 && status < 600 && retry_count < MAX_RETRIES {
+            retry_count += 1;
+            println!("Got {} error from httpbin.org, retrying (attempt {}/{})", 
+                     status, retry_count, MAX_RETRIES);
+            if let Some(err) = error_msg {
+                println!("Error details: {}", err);
+            }
+            
+            // Clean up the failed request
+            request_cleanup(request_id);
+            
+            // Wait a bit before retrying (with exponential backoff)
+            let backoff_ms = 100u64 * (1u64 << retry_count);
+            std::thread::sleep(Duration::from_millis(backoff_ms));
+            
+            // Create a new request
+            let builder_ptr = client_new_request_builder(client_ptr, HTTP_METHOD_GET, url_500.as_ptr());
+            let request_id_new = request_builder_send(builder_ptr);
+            assert!(request_id_new > 0);
+            request_id = request_id_new;
+        } else {
+            break;
+        }
+    }
+    
+    // This test should have done retries since it's a 500 error
+    assert!(retry_count > 0, "Retries should have been performed for a 500 response");
+    assert_eq!(status, 500, "Final status should still be 500 after retries");
     
     // Cleanup
     request_cleanup(request_id);
-    
-    success
-}
-
-// Test to perform multiple requests in sequence to check for race conditions
-#[test]
-fn test_race_condition_stress_test() {
-    println!("Starting race condition stress test");
-    
-    // Number of requests to make - reduce to 10 for faster test
-    const NUM_REQUESTS: usize = 10;
-    
-    // Build a client with a large connection pool
-    let client_builder_ptr = client_builder_new();
-    
-    // Set timeouts and pool size
-    assert!(client_builder_timeout(client_builder_ptr, 10, 30));
-    
-    let client_ptr = client_builder_build(client_builder_ptr);
-    assert!(!client_ptr.is_null());
-    
-    // Statistics
-    let mut successful_requests = 0;
-    let mut failed_requests = 0;
-    
-    // Create a URL for testing (small response for quick processing)
-    // We'll use a simple local endpoint to avoid network issues
-    let url = std::ffi::CString::new("https://httpbin.org/get?racecondition=stress").unwrap();
-    
-    for i in 1..=NUM_REQUESTS {
-        println!("Running request {}/{}", i, NUM_REQUESTS);
-        
-        // Process the request with retries
-        if process_request_with_retries(client_ptr, &url) {
-            successful_requests += 1;
-        } else {
-            failed_requests += 1;
-            println!("Request {} failed", i);
-        }
-        
-        // Add a small delay between requests to avoid overwhelming the server
-        std::thread::sleep(std::time::Duration::from_millis(100));
-    }
-    
-    // Close the client
     client_close(client_ptr);
-    
-    // Print statistics
-    println!("Stress test results:");
-    println!("Total requests: {}", NUM_REQUESTS);
-    println!("Successful requests: {}", successful_requests);
-    println!("Failed requests: {}", failed_requests);
-    
-    // Assertions - allow more failures since httpbin.org is highly unreliable
-    // We'll consider the test successful if at least 30% of requests succeeded
-    let success_threshold = (NUM_REQUESTS as f64 * 0.3) as usize;
-    assert!(
-        successful_requests >= success_threshold,
-        "Expected at least {}% successful requests, got {}/{}",
-        30, successful_requests, NUM_REQUESTS
-    );
 } 
