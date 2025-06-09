@@ -357,6 +357,43 @@ pub extern "C" fn client_start_get_request(
     request_id
 }
 
+// HTTP method constants (internal use only)
+// These values should match the enum values defined in LabVIEW
+// 1: GET
+// 2: POST
+// 3: PUT
+// 4: DELETE
+// 5: HEAD
+// 6: OPTIONS
+// 7: CONNECT
+// 8: PATCH
+// 9: TRACE
+const HTTP_METHOD_GET: u8 = 1;
+const HTTP_METHOD_POST: u8 = 2;
+const HTTP_METHOD_PUT: u8 = 3;
+const HTTP_METHOD_DELETE: u8 = 4;
+const HTTP_METHOD_HEAD: u8 = 5;
+const HTTP_METHOD_OPTIONS: u8 = 6;
+const HTTP_METHOD_CONNECT: u8 = 7;
+const HTTP_METHOD_PATCH: u8 = 8;
+const HTTP_METHOD_TRACE: u8 = 9;
+
+// Helper function to convert method integer to reqwest::Method
+fn convert_method(method: u8) -> Option<reqwest::Method> {
+    match method {
+        HTTP_METHOD_GET => Some(reqwest::Method::GET),
+        HTTP_METHOD_POST => Some(reqwest::Method::POST),
+        HTTP_METHOD_PUT => Some(reqwest::Method::PUT),
+        HTTP_METHOD_DELETE => Some(reqwest::Method::DELETE),
+        HTTP_METHOD_HEAD => Some(reqwest::Method::HEAD),
+        HTTP_METHOD_OPTIONS => Some(reqwest::Method::OPTIONS),
+        HTTP_METHOD_CONNECT => Some(reqwest::Method::CONNECT),
+        HTTP_METHOD_PATCH => Some(reqwest::Method::PATCH),
+        HTTP_METHOD_TRACE => Some(reqwest::Method::TRACE),
+        _ => None,
+    }
+}
+
 // A generic request function for methods with bodies
 fn start_request_with_body(
     client_ptr: *mut c_void,
@@ -392,26 +429,9 @@ fn start_request_with_body(
     };
 
     // Convert method integer to reqwest::Method
-    let reqwest_method = if method == HTTP_METHOD_GET {
-        reqwest::Method::GET
-    } else if method == HTTP_METHOD_POST {
-        reqwest::Method::POST
-    } else if method == HTTP_METHOD_PUT {
-        reqwest::Method::PUT
-    } else if method == HTTP_METHOD_DELETE {
-        reqwest::Method::DELETE
-    } else if method == HTTP_METHOD_HEAD {
-        reqwest::Method::HEAD
-    } else if method == HTTP_METHOD_OPTIONS {
-        reqwest::Method::OPTIONS
-    } else if method == HTTP_METHOD_CONNECT {
-        reqwest::Method::CONNECT
-    } else if method == HTTP_METHOD_PATCH {
-        reqwest::Method::PATCH
-    } else if method == HTTP_METHOD_TRACE {
-        reqwest::Method::TRACE
-    } else {
-        return 0; // Invalid method
+    let reqwest_method = match convert_method(method) {
+        Some(m) => m,
+        None => return 0,
     };
 
     let request_id = next_request_id();
@@ -713,55 +733,6 @@ pub extern "C" fn request_read_response_headers(request_id: RequestId) -> *mut R
     ptr::null_mut() // Return null if request not found or no response yet
 }
 
-// Get the error message directly as a string without exposing the response object
-#[no_mangle]
-pub extern "C" fn request_read_response_error_string(
-    request_id: RequestId,
-    num_bytes: *mut u32,
-) -> *mut c_char {
-    if num_bytes.is_null() {
-        return ptr::null_mut();
-    }
-    
-    // Get the response info
-    let tracker = REQUEST_TRACKER.lock().unwrap();
-    
-    if let Some(progress_info) = tracker.get(&request_id) {
-        let progress = progress_info.read().unwrap();
-        if let Some(ref response) = progress.final_response {
-            // If there's no error in the response, return null
-            let error_str = match &response.body {
-                Err(error_str) => error_str,
-                Ok(_) => {
-                    unsafe { *num_bytes = 0 };
-                    return ptr::null_mut();
-                }
-            };
-            
-            // Calculate size including null terminator
-            let str_len = error_str.len();
-            unsafe { *num_bytes = str_len as u32 };
-            
-            // Allocate memory for the string + null terminator
-            let c_str_ptr = unsafe { libc::malloc(str_len + 1) as *mut c_char };
-            if c_str_ptr.is_null() {
-                return ptr::null_mut();
-            }
-            
-            // Copy the string and add null terminator
-            unsafe {
-                std::ptr::copy_nonoverlapping(error_str.as_ptr(), c_str_ptr as *mut u8, str_len);
-                *(c_str_ptr.add(str_len)) = 0;
-            }
-            
-            return c_str_ptr;
-        }
-    }
-    
-    unsafe { *num_bytes = 0 };
-    ptr::null_mut() // Return null if request not found or no response yet
-}
-
 // Check if a request has an error
 #[no_mangle]
 pub extern "C" fn request_has_response_error(request_id: RequestId) -> bool {
@@ -799,27 +770,6 @@ impl ReqwestRequestBuilder {
     }
 }
 
-// HTTP method constants (internal use only)
-// These values should match the enum values defined in LabVIEW
-// 1: GET
-// 2: POST
-// 3: PUT
-// 4: DELETE
-// 5: HEAD
-// 6: OPTIONS
-// 7: CONNECT
-// 8: PATCH
-// 9: TRACE
-const HTTP_METHOD_GET: u8 = 1;
-const HTTP_METHOD_POST: u8 = 2;
-const HTTP_METHOD_PUT: u8 = 3;
-const HTTP_METHOD_DELETE: u8 = 4;
-const HTTP_METHOD_HEAD: u8 = 5;
-const HTTP_METHOD_OPTIONS: u8 = 6;
-const HTTP_METHOD_CONNECT: u8 = 7;
-const HTTP_METHOD_PATCH: u8 = 8;
-const HTTP_METHOD_TRACE: u8 = 9;
-
 // Create a request builder with specified HTTP method
 // method: HTTP method as an integer (1=GET, 2=POST, 3=PUT, 4=DELETE, etc.)
 #[no_mangle]
@@ -841,26 +791,9 @@ pub extern "C" fn client_new_request_builder(
     };
 
     // Convert method integer to reqwest::Method
-    let reqwest_method = if method == HTTP_METHOD_GET {
-        reqwest::Method::GET
-    } else if method == HTTP_METHOD_POST {
-        reqwest::Method::POST
-    } else if method == HTTP_METHOD_PUT {
-        reqwest::Method::PUT
-    } else if method == HTTP_METHOD_DELETE {
-        reqwest::Method::DELETE
-    } else if method == HTTP_METHOD_HEAD {
-        reqwest::Method::HEAD
-    } else if method == HTTP_METHOD_OPTIONS {
-        reqwest::Method::OPTIONS
-    } else if method == HTTP_METHOD_CONNECT {
-        reqwest::Method::CONNECT
-    } else if method == HTTP_METHOD_PATCH {
-        reqwest::Method::PATCH
-    } else if method == HTTP_METHOD_TRACE {
-        reqwest::Method::TRACE
-    } else {
-        return ptr::null_mut(); // Invalid method
+    let reqwest_method = match convert_method(method) {
+        Some(m) => m,
+        None => return ptr::null_mut(),
     };
 
     let request_builder = client.0.request(reqwest_method, url_str);
@@ -870,7 +803,6 @@ pub extern "C" fn client_new_request_builder(
         client_id,
     }))
 }
-
 
 // Free a request builder without sending
 #[no_mangle]
@@ -1200,20 +1132,6 @@ pub extern "C" fn request_builder_json(
 
     let builder = unsafe { &mut *builder_ptr };
     builder.with_builder(|b| b.json(&json_value))
-}
-
-// Set a request-specific connect timeout
-#[no_mangle]
-pub extern "C" fn request_builder_connect_timeout(
-    builder_ptr: *mut ReqwestRequestBuilder,
-    timeout_secs: u64,
-) -> bool {
-    if builder_ptr.is_null() {
-        return false;
-    }
-    
-    let builder = unsafe { &mut *builder_ptr };
-    builder.with_builder(|b| b.timeout(Duration::from_secs(timeout_secs)))
 }
 
 // Set a form parameter
