@@ -29,6 +29,10 @@ It (`reqwest-rs-labview`) was originally built to meet the following requirement
 - Make the DLL interface very simple and similar to the built-in LabVIEW HTTP Client
   - This option moves complexity into the DLL while also making it potentially harder to expose library capabilities and features to LabVIEW. Also, the LabVIEW HTTP Client does not support async downloads (its API doesn't expose request/response objects) so we'd be designing a new LabVIEW API anyway and then trying to design the DLL for calling it -- that feels like two (or more) hard things to do at the same time without much additional benefit.  Plus, we can create a high-level client in LabVIEW with an identical interface as the built-in LabVIEW HTTP Client that calls the `reqwest-rs-labview`, which moves that complexity and maintenance up to the LabVIEW level.
 
+## Open Issues and Questions
+
+- SSL/TLS choice -- there are several options for which SSL/TLS/Crypto library to use [rust-native-tls](https://github.com/sfackler/rust-native-tls) (system-native TLS) or [rustls](https://github.com/rustls/rustls) and which certs to bundle (or not).  For linux in particular, this may involve needing to recompile the DLL on the target machine, but we would need to test that.
+
 ## Roadmap
 
 - See [./docs/ROADMAP.md](docs/ROADMAP.md)
