@@ -191,12 +191,11 @@ pub extern "C" fn client_builder_default_headers(
     true
 }
 
-// Set timeouts for the client
+// Set timeout for the client
 #[no_mangle]
-pub extern "C" fn client_builder_timeout(
+pub extern "C" fn client_builder_timeout_ms(
     builder_ptr: *mut ReqwestClientBuilder,
-    connect_timeout_secs: u64,
-    timeout_secs: u64,
+    timeout_ms: u64,
 ) -> bool {
     if builder_ptr.is_null() {
         return false;
@@ -206,8 +205,25 @@ pub extern "C" fn client_builder_timeout(
         std::mem::take(&mut (*builder_ptr).0)
     };
     unsafe { &mut *builder_ptr }.0 = builder
-        .connect_timeout(Duration::from_secs(connect_timeout_secs))
-        .timeout(Duration::from_secs(timeout_secs));
+        .timeout(Duration::from_millis(timeout_ms));
+    true
+}
+
+// Set connect_timeout for the client
+#[no_mangle]
+pub extern "C" fn client_builder_connect_timeout_ms(
+    builder_ptr: *mut ReqwestClientBuilder,
+    connect_timeout_ms: u64,
+) -> bool {
+    if builder_ptr.is_null() {
+        return false;
+    }
+    let builder = unsafe {
+        // an unsafe block is required to dereference the raw pointer
+        std::mem::take(&mut (*builder_ptr).0)
+    };
+    unsafe { &mut *builder_ptr }.0 = builder
+        .connect_timeout(Duration::from_millis(connect_timeout_ms));
     true
 }
 
@@ -814,16 +830,16 @@ pub extern "C" fn request_builder_free(builder_ptr: *mut ReqwestRequestBuilder) 
 
 // Set request timeout
 #[no_mangle]
-pub extern "C" fn request_builder_timeout(
+pub extern "C" fn request_builder_timeout_ms(
     builder_ptr: *mut ReqwestRequestBuilder,
-    timeout_secs: u64,
+    timeout_ms: u64,
 ) -> bool {
     if builder_ptr.is_null() {
         return false;
     }
     
     let builder = unsafe { &mut *builder_ptr };
-    builder.with_builder(|b| b.timeout(Duration::from_secs(timeout_secs)))
+    builder.with_builder(|b| b.timeout(Duration::from_millis(timeout_ms)))
 }
 
 // Set request headers

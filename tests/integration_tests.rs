@@ -85,7 +85,8 @@ fn test_request_builder_api() {
     assert!(!client_builder_ptr.is_null());
     
     // Set client timeouts
-    assert!(client_builder_timeout(client_builder_ptr, 5, 30));
+    assert!(client_builder_connect_timeout_ms(client_builder_ptr, 5000));
+    assert!(client_builder_timeout_ms(client_builder_ptr, 15000));
     
     // Build the client
     let client_ptr = client_builder_build(client_builder_ptr);
@@ -99,7 +100,7 @@ fn test_request_builder_api() {
     assert!(!request_builder_ptr.is_null());
     
     // Set a request-specific timeout (overrides client timeout)
-    assert!(request_builder_timeout(request_builder_ptr, 15));
+    assert!(request_builder_timeout_ms(request_builder_ptr, 15000));
     
     // Add a header
     let key = std::ffi::CString::new("X-Test-Header").unwrap();
@@ -136,7 +137,7 @@ fn test_request_builder_api() {
             
             // Create a new request
             let request_builder_ptr = client_new_request_builder(client_ptr, HTTP_METHOD_GET, url.as_ptr());
-            assert!(request_builder_timeout(request_builder_ptr, 15));
+            assert!(request_builder_timeout_ms(request_builder_ptr, 15000));
             assert!(request_builder_header(request_builder_ptr, key.as_ptr(), value.as_ptr()));
             let request_id_new = request_builder_send(request_builder_ptr);
             assert!(request_id_new > 0);
