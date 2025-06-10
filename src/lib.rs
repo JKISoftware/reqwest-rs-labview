@@ -86,20 +86,20 @@ pub struct Response {
 }
 
 // Wrapper for the reqwest HeaderMap
-pub struct ReqwestHeaderMap(HeaderMap);
+pub struct HeaderMapWrapper(HeaderMap);
 
 // Wrapper for the reqwest Client
-pub struct ReqwestClient(Client);
+pub struct ClientWrapper(Client);
 
 // Create a new header map
 #[no_mangle]
-pub extern "C" fn headers_new() -> *mut ReqwestHeaderMap {
-    Box::into_raw(Box::new(ReqwestHeaderMap(HeaderMap::new())))
+pub extern "C" fn headers_new() -> *mut HeaderMapWrapper {
+    Box::into_raw(Box::new(HeaderMapWrapper(HeaderMap::new())))
 }
 
 // Free a header map
 #[no_mangle]
-pub extern "C" fn headers_free(map_ptr: *mut ReqwestHeaderMap) {
+pub extern "C" fn headers_free(map_ptr: *mut HeaderMapWrapper) {
     if map_ptr.is_null() {
         return;
     }
@@ -111,7 +111,7 @@ pub extern "C" fn headers_free(map_ptr: *mut ReqwestHeaderMap) {
 // Add a header to the map
 #[no_mangle]
 pub extern "C" fn headers_add(
-    map_ptr: *mut ReqwestHeaderMap,
+    map_ptr: *mut HeaderMapWrapper,
     key: *const c_char,
     value: *const c_char,
 ) -> bool {
@@ -149,17 +149,17 @@ pub extern "C" fn headers_add(
 }
 
 // Wrapper for the reqwest ClientBuilder
-pub struct ReqwestClientBuilder(ClientBuilder);
+pub struct ClientWrapperBuilder(ClientBuilder);
 
 // Create a new client builder
 #[no_mangle]
-pub extern "C" fn client_builder_new() -> *mut ReqwestClientBuilder {
-    Box::into_raw(Box::new(ReqwestClientBuilder(Client::builder())))
+pub extern "C" fn client_builder_new() -> *mut ClientWrapperBuilder {
+    Box::into_raw(Box::new(ClientWrapperBuilder(Client::builder())))
 }
 
 // Free a client builder if it's not used
 #[no_mangle]
-pub extern "C" fn client_builder_free(builder_ptr: *mut ReqwestClientBuilder) {
+pub extern "C" fn client_builder_free(builder_ptr: *mut ClientWrapperBuilder) {
     if builder_ptr.is_null() {
         return;
     }
@@ -171,8 +171,8 @@ pub extern "C" fn client_builder_free(builder_ptr: *mut ReqwestClientBuilder) {
 // Set default headers for the client
 #[no_mangle]
 pub extern "C" fn client_builder_default_headers(
-    builder_ptr: *mut ReqwestClientBuilder,
-    headers_ptr: *mut ReqwestHeaderMap,
+    builder_ptr: *mut ClientWrapperBuilder,
+    headers_ptr: *mut HeaderMapWrapper,
 ) -> bool {
     if builder_ptr.is_null() {
         return false;
@@ -194,7 +194,7 @@ pub extern "C" fn client_builder_default_headers(
 // Set timeout for the client
 #[no_mangle]
 pub extern "C" fn client_builder_timeout_ms(
-    builder_ptr: *mut ReqwestClientBuilder,
+    builder_ptr: *mut ClientWrapperBuilder,
     timeout_ms: u64,
 ) -> bool {
     if builder_ptr.is_null() {
@@ -212,7 +212,7 @@ pub extern "C" fn client_builder_timeout_ms(
 // Set connect_timeout for the client
 #[no_mangle]
 pub extern "C" fn client_builder_connect_timeout_ms(
-    builder_ptr: *mut ReqwestClientBuilder,
+    builder_ptr: *mut ClientWrapperBuilder,
     connect_timeout_ms: u64,
 ) -> bool {
     if builder_ptr.is_null() {
@@ -230,7 +230,7 @@ pub extern "C" fn client_builder_connect_timeout_ms(
 // Set whether to accept invalid certificates
 #[no_mangle]
 pub extern "C" fn client_builder_danger_accept_invalid_certs(
-    builder_ptr: *mut ReqwestClientBuilder,
+    builder_ptr: *mut ClientWrapperBuilder,
     accept: bool,
 ) -> bool {
     if builder_ptr.is_null() {
@@ -247,7 +247,7 @@ pub extern "C" fn client_builder_danger_accept_invalid_certs(
 // Build the client from the builder
 #[no_mangle]
 pub extern "C" fn client_builder_build(
-    builder_ptr: *mut ReqwestClientBuilder,
+    builder_ptr: *mut ClientWrapperBuilder,
 ) -> *mut c_void {
     if builder_ptr.is_null() {
         return ptr::null_mut();
@@ -266,7 +266,7 @@ pub extern "C" fn client_builder_build(
         }
     });
 
-    let client_wrapper = Box::new(ReqwestClient(client));
+    let client_wrapper = Box::new(ClientWrapper(client));
     let client_ptr = Box::into_raw(client_wrapper) as *mut c_void;
     
     // Initialize an empty set of request IDs for this client
@@ -295,7 +295,7 @@ pub extern "C" fn client_close(client_ptr: *mut c_void) {
     });
     
     // Now it's safe to drop the client
-    let _ = unsafe { Box::from_raw(client_ptr as *mut ReqwestClient) };
+    let _ = unsafe { Box::from_raw(client_ptr as *mut ClientWrapper) };
     
     // Yield to ensure proper cleanup
     GLOBAL_RUNTIME.block_on(async {
@@ -556,14 +556,14 @@ pub extern "C" fn request_read_response_status(request_id: RequestId) -> u16 {
 
 // Get the response headers directly from a request ID
 #[no_mangle]
-pub extern "C" fn request_read_response_headers(request_id: RequestId) -> *mut ReqwestHeaderMap {
+pub extern "C" fn request_read_response_headers(request_id: RequestId) -> *mut HeaderMapWrapper {
     // Get the response info
     let tracker = REQUEST_TRACKER.lock().unwrap();
     
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
         if let Some(ref response) = progress.final_response {
-            return Box::into_raw(Box::new(ReqwestHeaderMap(response.headers.clone())));
+            return Box::into_raw(Box::new(HeaderMapWrapper(response.headers.clone())));
         }
     }
     
@@ -620,7 +620,7 @@ pub extern "C" fn client_new_request_builder(
         return ptr::null_mut();
     }
 
-    let client = unsafe { &*(client_ptr as *const ReqwestClient) };
+    let client = unsafe { &*(client_ptr as *const ClientWrapper) };
     let client_id = client_ptr as usize;
     
     let url_str = match unsafe { CStr::from_ptr(url).to_str() } {
@@ -669,7 +669,7 @@ pub extern "C" fn request_builder_timeout_ms(
 #[no_mangle]
 pub extern "C" fn request_builder_headers(
     builder_ptr: *mut ReqwestRequestBuilder,
-    headers_ptr: *mut ReqwestHeaderMap,
+    headers_ptr: *mut HeaderMapWrapper,
 ) -> bool {
     if builder_ptr.is_null() {
         return false;
