@@ -587,13 +587,13 @@ pub extern "C" fn request_has_response_error(request_id: RequestId) -> bool {
 }
 
 // Wrapper for the reqwest RequestBuilder
-pub struct ReqwestRequestBuilder {
+pub struct RequestBuilderWrapper {
     builder: Option<RequestBuilder>,
     client_id: ClientId,
     output_file_path: Option<String>,
 }
 
-impl ReqwestRequestBuilder {
+impl RequestBuilderWrapper {
     // Helper method to take the builder out, apply a function, and put it back
     fn with_builder<F>(&mut self, f: F) -> bool
     where
@@ -615,7 +615,7 @@ pub extern "C" fn client_new_request_builder(
     client_ptr: *mut c_void,
     method: u8,
     url: *const c_char,
-) -> *mut ReqwestRequestBuilder {
+) -> *mut RequestBuilderWrapper {
     if client_ptr.is_null() || url.is_null() {
         return ptr::null_mut();
     }
@@ -629,14 +629,14 @@ pub extern "C" fn client_new_request_builder(
     };
 
     // Convert method integer to reqwest::Method
-    let reqwest_method = match convert_method(method) {
+    let http_method = match convert_method(method) {
         Some(m) => m,
         None => return ptr::null_mut(),
     };
 
-    let request_builder = client.0.request(reqwest_method, url_str);
+    let request_builder = client.0.request(http_method, url_str);
     
-    Box::into_raw(Box::new(ReqwestRequestBuilder {
+    Box::into_raw(Box::new(RequestBuilderWrapper {
         builder: Some(request_builder),
         client_id,
         output_file_path: None,
@@ -645,7 +645,7 @@ pub extern "C" fn client_new_request_builder(
 
 // Free a request builder without sending
 #[no_mangle]
-pub extern "C" fn request_builder_free(builder_ptr: *mut ReqwestRequestBuilder) {
+pub extern "C" fn request_builder_free(builder_ptr: *mut RequestBuilderWrapper) {
     if !builder_ptr.is_null() {
         unsafe { let _ = Box::from_raw(builder_ptr); }
     }
@@ -654,7 +654,7 @@ pub extern "C" fn request_builder_free(builder_ptr: *mut ReqwestRequestBuilder) 
 // Set request timeout
 #[no_mangle]
 pub extern "C" fn request_builder_timeout_ms(
-    builder_ptr: *mut ReqwestRequestBuilder,
+    builder_ptr: *mut RequestBuilderWrapper,
     timeout_ms: u64,
 ) -> bool {
     if builder_ptr.is_null() {
@@ -668,7 +668,7 @@ pub extern "C" fn request_builder_timeout_ms(
 // Set request headers
 #[no_mangle]
 pub extern "C" fn request_builder_headers(
-    builder_ptr: *mut ReqwestRequestBuilder,
+    builder_ptr: *mut RequestBuilderWrapper,
     headers_ptr: *mut HeaderMapWrapper,
 ) -> bool {
     if builder_ptr.is_null() {
@@ -688,7 +688,7 @@ pub extern "C" fn request_builder_headers(
 // Set request body
 #[no_mangle]
 pub extern "C" fn request_builder_body(
-    builder_ptr: *mut ReqwestRequestBuilder,
+    builder_ptr: *mut RequestBuilderWrapper,
     body: *const c_char,
 ) -> bool {
     if builder_ptr.is_null() {
@@ -711,7 +711,7 @@ pub extern "C" fn request_builder_body(
 // Set the output file path for the request, which will cause the response to be streamed to the file.
 #[no_mangle]
 pub extern "C" fn request_builder_set_output_file(
-    builder_ptr: *mut ReqwestRequestBuilder,
+    builder_ptr: *mut RequestBuilderWrapper,
     file_path: *const c_char,
 ) -> bool {
     if builder_ptr.is_null() {
@@ -744,7 +744,7 @@ pub extern "C" fn request_builder_set_output_file(
 // Otherwise, it will be buffered in memory.
 #[no_mangle]
 pub extern "C" fn request_builder_send(
-    builder_ptr: *mut ReqwestRequestBuilder,
+    builder_ptr: *mut RequestBuilderWrapper,
 ) -> RequestId {
     if builder_ptr.is_null() {
         return 0;
@@ -795,7 +795,7 @@ pub extern "C" fn request_builder_send(
 // Add a header to the request
 #[no_mangle]
 pub extern "C" fn request_builder_header(
-    builder_ptr: *mut ReqwestRequestBuilder,
+    builder_ptr: *mut RequestBuilderWrapper,
     key: *const c_char,
     value: *const c_char,
 ) -> bool {
@@ -833,7 +833,7 @@ pub extern "C" fn request_builder_header(
 // Set query parameters
 #[no_mangle]
 pub extern "C" fn request_builder_query(
-    builder_ptr: *mut ReqwestRequestBuilder,
+    builder_ptr: *mut RequestBuilderWrapper,
     key: *const c_char,
     value: *const c_char,
 ) -> bool {
@@ -865,7 +865,7 @@ pub extern "C" fn request_builder_query(
 // Set basic authentication
 #[no_mangle]
 pub extern "C" fn request_builder_basic_auth(
-    builder_ptr: *mut ReqwestRequestBuilder,
+    builder_ptr: *mut RequestBuilderWrapper,
     username: *const c_char,
     password: *const c_char,
 ) -> bool {
@@ -902,7 +902,7 @@ pub extern "C" fn request_builder_basic_auth(
 // Set bearer authentication
 #[no_mangle]
 pub extern "C" fn request_builder_bearer_auth(
-    builder_ptr: *mut ReqwestRequestBuilder,
+    builder_ptr: *mut RequestBuilderWrapper,
     token: *const c_char,
 ) -> bool {
     if builder_ptr.is_null() || token.is_null() {
@@ -923,7 +923,7 @@ pub extern "C" fn request_builder_bearer_auth(
 // Set JSON body (convenience method that sets content-type header too)
 #[no_mangle]
 pub extern "C" fn request_builder_json(
-    builder_ptr: *mut ReqwestRequestBuilder,
+    builder_ptr: *mut RequestBuilderWrapper,
     json: *const c_char,
 ) -> bool {
     if builder_ptr.is_null() || json.is_null() {
@@ -950,7 +950,7 @@ pub extern "C" fn request_builder_json(
 // Set a form parameter
 #[no_mangle]
 pub extern "C" fn request_builder_form(
-    builder_ptr: *mut ReqwestRequestBuilder,
+    builder_ptr: *mut RequestBuilderWrapper,
     key: *const c_char,
     value: *const c_char,
 ) -> bool {
