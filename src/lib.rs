@@ -769,6 +769,7 @@ pub extern "C" fn request_has_response_error(request_id: RequestId) -> bool {
 pub struct ReqwestRequestBuilder {
     builder: Option<RequestBuilder>,
     client_id: ClientId,
+    output_file_path: Option<String>,
 }
 
 impl ReqwestRequestBuilder {
@@ -817,6 +818,7 @@ pub extern "C" fn client_new_request_builder(
     Box::into_raw(Box::new(ReqwestRequestBuilder {
         builder: Some(request_builder),
         client_id,
+        output_file_path: None,
     }))
 }
 
@@ -885,7 +887,40 @@ pub extern "C" fn request_builder_body(
     builder.with_builder(|b| b.body(body_str.to_string()))
 }
 
-// Send the request and get a request ID
+// Set the output file path for the request, which will cause the response to be streamed to the file.
+#[no_mangle]
+pub extern "C" fn request_builder_set_output_file(
+    builder_ptr: *mut ReqwestRequestBuilder,
+    file_path: *const c_char,
+) -> bool {
+    if builder_ptr.is_null() {
+        return false;
+    }
+
+    let builder = unsafe { &mut *builder_ptr };
+
+    if file_path.is_null() {
+        builder.output_file_path = None;
+        return true;
+    }
+
+    let file_path_str = match unsafe { CStr::from_ptr(file_path).to_str() } {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+
+    if file_path_str.is_empty() {
+        builder.output_file_path = None;
+    } else {
+        builder.output_file_path = Some(file_path_str.to_string());
+    }
+
+    true
+}
+
+// Send the request and get a request ID.
+// If an output file path is set on the builder, the response will be streamed to that file.
+// Otherwise, it will be buffered in memory.
 #[no_mangle]
 pub extern "C" fn request_builder_send(
     builder_ptr: *mut ReqwestRequestBuilder,
@@ -893,79 +928,22 @@ pub extern "C" fn request_builder_send(
     if builder_ptr.is_null() {
         return 0;
     }
-    
-    // Get the builder
-    let builder = unsafe { &mut *builder_ptr };
-    let client_id = builder.client_id;
-    
-    // Take the builder
-    let request_builder = if let Some(b) = builder.builder.take() {
-        b
-    } else {
-        return 0;
-    };
-    
-    // Create a new request ID
-    let request_id = next_request_id();
-    
-    // Create progress tracking
-    let progress_info = Arc::new(RwLock::new(RequestProgress {
-        status: RequestStatus::InProgress,
-        total_bytes: None,
-        received_bytes: 0,
-        final_response: None,
-    }));
-    
-    // Store the progress info
-    {
-        let mut tracker = REQUEST_TRACKER.lock().unwrap();
-        tracker.insert(request_id, progress_info.clone());
-    }
-    
-    // Register this request with the client
-    register_request(client_id, request_id);
-    
-    // Use the global runtime to process the request
-    let progress_info_clone = progress_info.clone();
-    GLOBAL_RUNTIME.spawn(async move {
-        // Get the future within the Tokio context
-        let request_future = request_builder.send();
-        async_support::process_request(request_future, progress_info_clone, None).await;
-    });
-    
-    request_id
-}
 
-// Send the request with a file download path and get a request ID
-#[no_mangle]
-pub extern "C" fn request_builder_send_to_file(
-    builder_ptr: *mut ReqwestRequestBuilder,
-    file_path: *const c_char,
-) -> RequestId {
-    if builder_ptr.is_null() || file_path.is_null() {
-        return 0;
-    }
-    
-    // Extract the file path
-    let file_path_str = match unsafe { CStr::from_ptr(file_path).to_str() } {
-        Ok(s) if !s.is_empty() => Some(s.to_string()),
-        _ => return 0,
-    };
-    
     // Get the builder
     let builder = unsafe { &mut *builder_ptr };
     let client_id = builder.client_id;
-    
+    let output_file_path = builder.output_file_path.clone();
+
     // Take the builder
     let request_builder = if let Some(b) = builder.builder.take() {
         b
     } else {
         return 0;
     };
-    
+
     // Create a new request ID
     let request_id = next_request_id();
-    
+
     // Create progress tracking
     let progress_info = Arc::new(RwLock::new(RequestProgress {
         status: RequestStatus::InProgress,
@@ -973,25 +951,23 @@ pub extern "C" fn request_builder_send_to_file(
         received_bytes: 0,
         final_response: None,
     }));
-    
+
     // Store the progress info
     {
         let mut tracker = REQUEST_TRACKER.lock().unwrap();
         tracker.insert(request_id, progress_info.clone());
     }
-    
+
     // Register this request with the client
     register_request(client_id, request_id);
-    
+
     // Use the global runtime to process the request
-    let progress_info_clone = progress_info.clone();
-    let file_path_clone = file_path_str.clone();
     GLOBAL_RUNTIME.spawn(async move {
         // Get the future within the Tokio context
         let request_future = request_builder.send();
-        async_support::process_request(request_future, progress_info_clone, file_path_clone).await;
+        async_support::process_request(request_future, progress_info, output_file_path).await;
     });
-    
+
     request_id
 }
 

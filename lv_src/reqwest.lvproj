@@ -73,9 +73,7 @@
 				<Item Name="Dictionary Get Items__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/dictionary/dictionary.llb/Dictionary Get Items__ogtk.vi"/>
 				<Item Name="Dictionary Update (by scalar value)__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/dictionary/dictionary.llb/Dictionary Update (by scalar value)__ogtk.vi"/>
 				<Item Name="Dictionary Get Values__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/dictionary/dictionary.llb/Dictionary Get Values__ogtk.vi"/>
-				<Item Name="Draw Image from File__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/picture/picture.llb/Draw Image from File__ogtk.vi"/>
 				<Item Name="ZLIB Inflate__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Inflate__ogtk.vi"/>
-				<Item Name="Boolean Trigger__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/boolean/boolean.llb/Boolean Trigger__ogtk.vi"/>
 				<Item Name="Random Number - Within Range__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/numeric/numeric.llb/Random Number - Within Range__ogtk.vi"/>
 				<Item Name="ZLIB Move Raw File__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Move Raw File__ogtk.vi"/>
 				<Item Name="ZLIB Get Global Info__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Get Global Info__ogtk.vi"/>
@@ -105,6 +103,45 @@
 				<Item Name="MD5 H function__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/md5/md5.llb/MD5 H function__ogtk.vi"/>
 				<Item Name="MD5 I function__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/md5/md5.llb/MD5 I function__ogtk.vi"/>
 				<Item Name="MD5 Message Digest (Hexadecimal String)__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/md5/md5.llb/MD5 Message Digest (Hexadecimal String)__ogtk.vi"/>
+				<Item Name="ZLIB Path to Path String__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Path to Path String__ogtk.vi"/>
+				<Item Name="ZLIB Initialize File Functions__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Initialize File Functions__ogtk.vi"/>
+				<Item Name="ZLIB Open Unzip Archive (Path)__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/subVI/ZLIB Open Unzip Archive (Path)__ogtk.vi"/>
+				<Item Name="ZLIB Uncompress File Info__ogtk.ctl" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Uncompress File Info__ogtk.ctl"/>
+				<Item Name="ZLIB Convert File Info__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Convert File Info__ogtk.vi"/>
+				<Item Name="ZLIB Read Compressed Stream__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Read Compressed Stream__ogtk.vi"/>
+				<Item Name="ZLIB Open Zip Archive (Path)__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/subVI/ZLIB Open Zip Archive (Path)__ogtk.vi"/>
+				<Item Name="ZLIB File Information__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB File Information__ogtk.vi"/>
+				<Item Name="MACBIN Resource File Info Core__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/macbin.llb/MACBIN Resource File Info Core__ogtk.vi"/>
+				<Item Name="MACBIN Resource Header__ogtk.ctl" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/macbin.llb/MACBIN Resource Header__ogtk.ctl"/>
+				<Item Name="MACBIN Encode MacBinary__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/macbin.llb/MACBIN Encode MacBinary__ogtk.vi"/>
+				<Item Name="MACBIN Create Header__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/macbin.llb/MACBIN Create Header__ogtk.vi"/>
+				<Item Name="MACBIN Macbinary Header__ogtk.ctl" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/macbin.llb/MACBIN Macbinary Header__ogtk.ctl"/>
+				<Item Name="MACBIN Resource File Info__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/macbin.llb/MACBIN Resource File Info__ogtk.vi"/>
+				<Item Name="MACBIN Open File Refnum__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/macbin.llb/MACBIN Open File Refnum__ogtk.vi"/>
+				<Item Name="MACBIN CCITT_CRC16__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/macbin.llb/MACBIN CCITT_CRC16__ogtk.vi"/>
+				<Item Name="MACBIN Copy Fork To File__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/macbin.llb/MACBIN Copy Fork To File__ogtk.vi"/>
+				<Item Name="MACBIN Size Padding__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/macbin.llb/MACBIN Size Padding__ogtk.vi"/>
+				<Item Name="ZLIB Get File CRC32__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Get File CRC32__ogtk.vi"/>
+				<Item Name="ZLIB CRC32__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB CRC32__ogtk.vi"/>
+				<Item Name="ZLIB Open Write File__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Open Write File__ogtk.vi"/>
+				<Item Name="ZLIB Compress File Info__ogtk.ctl" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Compress File Info__ogtk.ctl"/>
+				<Item Name="ZLIB Write File__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Write File__ogtk.vi"/>
+				<Item Name="ZLIB Close Write File__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Close Write File__ogtk.vi"/>
+				<Item Name="ZLIB Read Local Extra Data__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Read Local Extra Data__ogtk.vi"/>
+				<Item Name="ZLIB Transfer Raw File__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Transfer Raw File__ogtk.vi"/>
+				<Item Name="ZLIB Copy Raw File w Name__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/subVI/ZLIB Copy Raw File w Name__ogtk.vi"/>
+				<Item Name="openg_picture.lvlib" Type="Library" URL="/&lt;userlib&gt;/_OpenG.lib/picture/picture.llb/openg_picture.lvlib"/>
+				<Item Name="openg_boolean__ogtk.lvlib" Type="Library" URL="/&lt;userlib&gt;/_OpenG.lib/boolean/boolean.llb/openg_boolean__ogtk.lvlib"/>
+				<Item Name="ZLIB Get File__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Get File__ogtk.vi"/>
+				<Item Name="MACBIN Read Header__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/macbin.llb/MACBIN Read Header__ogtk.vi"/>
+				<Item Name="MACBIN Verify Header__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/macbin.llb/MACBIN Verify Header__ogtk.vi"/>
+				<Item Name="MACBIN Copy Fork From File__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/macbin.llb/MACBIN Copy Fork From File__ogtk.vi"/>
+				<Item Name="ZLIB Extract File (Path)__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/subVI/ZLIB Extract File (Path)__ogtk.vi"/>
+				<Item Name="ZLIB Open Unzip Stream__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Open Unzip Stream__ogtk.vi"/>
+				<Item Name="ZLIB Initialize Stream Functions__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Initialize Stream Functions__ogtk.vi"/>
+				<Item Name="ZLIB Go To First File Only__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/subVI/ZLIB Go To First File Only__ogtk.vi"/>
+				<Item Name="ZLIB Go To Next File Only__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/subVI/ZLIB Go To Next File Only__ogtk.vi"/>
+				<Item Name="ZLIB Write Stream__ogtk.vi" Type="VI" URL="/&lt;userlib&gt;/_OpenG.lib/lvzip/lvzip.llb/ZLIB Write Stream__ogtk.vi"/>
 			</Item>
 			<Item Name="vi.lib" Type="Folder">
 				<Item Name="Clear Errors.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/error.llb/Clear Errors.vi"/>
@@ -248,9 +285,8 @@
 				<Item Name="7842910552F72B45FFAA5B67DFEBCBC5Filter 1D Array (String)__ogtk.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/_Caraya_internal_deps/7842910552F72B45FFAA5B67DFEBCBC5Filter 1D Array (String)__ogtk.vi"/>
 				<Item Name="Caraya Interactive Menu.rtm" Type="Document" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/Caraya/menu/Caraya Interactive Menu.rtm"/>
 				<Item Name="Dflt Data Dir.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/file.llb/Dflt Data Dir.vi"/>
-				<Item Name="Trim Whitespace One-Sided.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/error.llb/Trim Whitespace One-Sided.vi"/>
-				<Item Name="Add State(s) to Queue__JKI_lib_State_Machine.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/State Machine/_JKI_lib_State_Machine.llb/Add State(s) to Queue__JKI_lib_State_Machine.vi"/>
-				<Item Name="Parse State Queue__JKI_lib_State_Machine.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/State Machine/_JKI_lib_State_Machine.llb/Parse State Queue__JKI_lib_State_Machine.vi"/>
+				<Item Name="Add State(s) to Queue__jki_lib_state_machine.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/State Machine/_JKI_lib_State_Machine.llb/Add State(s) to Queue__jki_lib_state_machine.vi"/>
+				<Item Name="Parse State Queue__jki_lib_state_machine.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/State Machine/_JKI_lib_State_Machine.llb/Parse State Queue__jki_lib_state_machine.vi"/>
 				<Item Name="System Exec.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/system.llb/System Exec.vi"/>
 				<Item Name="NI_PtbyPt.lvlib" Type="Library" URL="/&lt;vilib&gt;/ptbypt/NI_PtbyPt.lvlib"/>
 				<Item Name="LabVIEWHTTPClient.lvlib" Type="Library" URL="/&lt;vilib&gt;/httpClient/LabVIEWHTTPClient.lvlib"/>
@@ -431,7 +467,6 @@
 				<Item Name="Get Any Windows Folder Path__jki_lib_windows.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_windows.llb/Get Any Windows Folder Path__jki_lib_windows.vi"/>
 				<Item Name="Normalize End Of Line.vi" Type="VI" URL="/&lt;vilib&gt;/AdvancedString/Normalize End Of Line.vi"/>
 				<Item Name="GetFileVersionInfo_Main__jki_lib_application_control.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_application_control.llb/GetFileVersionInfo_Main__jki_lib_application_control.vi"/>
-				<Item Name="Get Redirects.vi" Type="VI" URL="/&lt;vilib&gt;/JKI/HTTP Client Extensions/HTTPx/Get Redirects.vi"/>
 				<Item Name="Compare Version Strings__jki_lib_application_control.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_application_control.llb/Compare Version Strings__jki_lib_application_control.vi"/>
 				<Item Name="Version Comparison Enum__jki_lib_application_control.ctl" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_application_control.llb/Version Comparison Enum__jki_lib_application_control.ctl"/>
 				<Item Name="Read Registry Value Simple U32.vi" Type="VI" URL="/&lt;vilib&gt;/registry/registry.llb/Read Registry Value Simple U32.vi"/>
@@ -625,7 +660,6 @@
 				<Item Name="JDP Timestamp.lvlib" Type="Library" URL="/&lt;vilib&gt;/JDP Science/JDP Science Common Utilities/Timestamp/JDP Timestamp.lvlib"/>
 				<Item Name="LVNumericRepresentation.ctl" Type="VI" URL="/&lt;vilib&gt;/numeric/LVNumericRepresentation.ctl"/>
 				<Item Name="LVPointTypeDef.ctl" Type="VI" URL="/&lt;vilib&gt;/Utility/miscctls.llb/LVPointTypeDef.ctl"/>
-				<Item Name="Add State(s) to Queue__jki_lib_state_machine.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/State Machine/_JKI_lib_State_Machine.llb/Add State(s) to Queue__jki_lib_state_machine.vi"/>
 				<Item Name="restore window__jki_lib_windows.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_windows.llb/restore window__jki_lib_windows.vi"/>
 				<Item Name="postmessage master__jki_lib_windows.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_windows.llb/postmessage master__jki_lib_windows.vi"/>
 				<Item Name="FindWindow__jki_lib_windows.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_windows.llb/FindWindow__jki_lib_windows.vi"/>
@@ -689,13 +723,155 @@
 				<Item Name="Delete Registry Key.vi" Type="VI" URL="/&lt;vilib&gt;/registry/registry.llb/Delete Registry Key.vi"/>
 				<Item Name="VCluster to Key-Value Pairs__jki_lib_string.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_string.llb/VCluster to Key-Value Pairs__jki_lib_string.vi"/>
 				<Item Name="Merge Dictionary B into A__jki_lib_string.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_string.llb/Merge Dictionary B into A__jki_lib_string.vi"/>
-				<Item Name="Read Progress.vi" Type="VI" URL="/&lt;vilib&gt;/JKI/HTTP Client Extensions/HTTP GET Async/Read Progress.vi"/>
-				<Item Name="GET Async.vi" Type="VI" URL="/&lt;vilib&gt;/JKI/HTTP Client Extensions/support/GET Async.vi"/>
-				<Item Name="Close Reference.vi" Type="VI" URL="/&lt;vilib&gt;/JKI/HTTP Client Extensions/HTTP GET Async/Close Reference.vi"/>
-				<Item Name="Refnum Type - Enum.ctl" Type="VI" URL="/&lt;vilib&gt;/JKI/HTTP Client Extensions/controls/Refnum Type - Enum.ctl"/>
-				<Item Name="Refnum Type.ctl" Type="VI" URL="/&lt;vilib&gt;/JKI/HTTP Client Extensions/controls/Refnum Type.ctl"/>
+				<Item Name="CFStringCreate.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/CFString.llb/CFStringCreate.vi"/>
+				<Item Name="CFStringRef.ctl" Type="VI" URL="/&lt;vilib&gt;/Platform/CFString.llb/CFStringRef.ctl"/>
+				<Item Name="CFString.ctl" Type="VI" URL="/&lt;vilib&gt;/Platform/CFString.llb/CFString.ctl"/>
+				<Item Name="CFURLCreateWithFileSystemPath.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/CFURL.llb/CFURLCreateWithFileSystemPath.vi"/>
+				<Item Name="CFURLRef.ctl" Type="VI" URL="/&lt;vilib&gt;/Platform/CFURL.llb/CFURLRef.ctl"/>
+				<Item Name="CFURL.ctl" Type="VI" URL="/&lt;vilib&gt;/Platform/CFURL.llb/CFURL.ctl"/>
+				<Item Name="CFReleaseString.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/CFString.llb/CFReleaseString.vi"/>
+				<Item Name="CFURLCopyFileSystemPath.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/CFURL.llb/CFURLCopyFileSystemPath.vi"/>
+				<Item Name="CFReleaseURL.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/CFURL.llb/CFReleaseURL.vi"/>
+				<Item Name="CFStringGetCString.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/CFString.llb/CFStringGetCString.vi"/>
+				<Item Name="Registry refnum.ctl" Type="VI" URL="/&lt;vilib&gt;/registry/registry.llb/Registry refnum.ctl"/>
+				<Item Name="STR_ASCII-Unicode.vi" Type="VI" URL="/&lt;vilib&gt;/registry/registry.llb/STR_ASCII-Unicode.vi"/>
+				<Item Name="Registry WinErr-LVErr.vi" Type="VI" URL="/&lt;vilib&gt;/registry/registry.llb/Registry WinErr-LVErr.vi"/>
+				<Item Name="Registry Handle Master.vi" Type="VI" URL="/&lt;vilib&gt;/registry/registry.llb/Registry Handle Master.vi"/>
+				<Item Name="Read Registry Value.vi" Type="VI" URL="/&lt;vilib&gt;/registry/registry.llb/Read Registry Value.vi"/>
+				<Item Name="Read Registry Value STR.vi" Type="VI" URL="/&lt;vilib&gt;/registry/registry.llb/Read Registry Value STR.vi"/>
+				<Item Name="Read Registry Value DWORD.vi" Type="VI" URL="/&lt;vilib&gt;/registry/registry.llb/Read Registry Value DWORD.vi"/>
+				<Item Name="Registry Simplify Data Type.vi" Type="VI" URL="/&lt;vilib&gt;/registry/registry.llb/Registry Simplify Data Type.vi"/>
+				<Item Name="Blowfish Init__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Blowfish Init__jki_lib_data_manipulation.vi"/>
+				<Item Name="Blowfish Encipher Decipher__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Blowfish Encipher Decipher__jki_lib_data_manipulation.vi"/>
+				<Item Name="Blowfish F(X)__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Blowfish F(X)__jki_lib_data_manipulation.vi"/>
+				<Item Name="FileVersionInformation.ctl" Type="VI" URL="/&lt;vilib&gt;/Platform/fileVersionInfo.llb/FileVersionInformation.ctl"/>
+				<Item Name="FileVersionInfo.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/fileVersionInfo.llb/FileVersionInfo.vi"/>
+				<Item Name="GetFileVersionInfoSize.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/fileVersionInfo.llb/GetFileVersionInfoSize.vi"/>
+				<Item Name="BuildErrorSource.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/fileVersionInfo.llb/BuildErrorSource.vi"/>
+				<Item Name="GetFileVersionInfo.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/fileVersionInfo.llb/GetFileVersionInfo.vi"/>
+				<Item Name="VerQueryValue.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/fileVersionInfo.llb/VerQueryValue.vi"/>
+				<Item Name="MoveMemory.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/fileVersionInfo.llb/MoveMemory.vi"/>
+				<Item Name="FixedFileInfo_Struct.ctl" Type="VI" URL="/&lt;vilib&gt;/Platform/fileVersionInfo.llb/FixedFileInfo_Struct.ctl"/>
+				<Item Name="HTTP Client Extensions.lvlib" Type="Library" URL="/&lt;vilib&gt;/JKI/HTTP Client Extensions/HTTP Client Extensions.lvlib"/>
+				<Item Name="Version String to Array__jki_lib_application_control.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_application_control.llb/Version String to Array__jki_lib_application_control.vi"/>
+				<Item Name="Compare Version Arrays__jki_lib_application_control.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_application_control.llb/Compare Version Arrays__jki_lib_application_control.vi"/>
+				<Item Name="Build Pre-Release Version Array__jki_lib_application_control.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_application_control.llb/Build Pre-Release Version Array__jki_lib_application_control.vi"/>
+				<Item Name="5E9950961EDF43975DBAFF8DACD41781" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/5E9950961EDF43975DBAFF8DACD41781"/>
+				<Item Name="43113CD464E15A96E9287B92E748F97B" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/43113CD464E15A96E9287B92E748F97B"/>
+				<Item Name="3BB952BD6C4BDF1C01AEC8C7A0765C7A" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/3BB952BD6C4BDF1C01AEC8C7A0765C7A"/>
+				<Item Name="A5C30462A154BD3E82CADCEBADAB1399" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/A5C30462A154BD3E82CADCEBADAB1399"/>
+				<Item Name="851A34DAFE42A63DADF4225F53FF334D" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/851A34DAFE42A63DADF4225F53FF334D"/>
+				<Item Name="1F5AC58B480B331E616AADB72C49CEC4" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/1F5AC58B480B331E616AADB72C49CEC4"/>
+				<Item Name="34AF82DF15600F4D619DD8A82683CBD8" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/34AF82DF15600F4D619DD8A82683CBD8"/>
+				<Item Name="B5B4014C66B3F062C673B24D27B5706B" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/B5B4014C66B3F062C673B24D27B5706B"/>
+				<Item Name="BCBBA6521626296B61B8710ACA9280FF" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/BCBBA6521626296B61B8710ACA9280FF"/>
+				<Item Name="EE6D51C55D9175377BDF3F4D4B3E1321" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/EE6D51C55D9175377BDF3F4D4B3E1321"/>
+				<Item Name="6343517A091B3607FC7C6E397A6F9E91" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/6343517A091B3607FC7C6E397A6F9E91"/>
+				<Item Name="DD08021A00822A1C0269F8685656E0EF" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/DD08021A00822A1C0269F8685656E0EF"/>
+				<Item Name="78AB7E07285F738A3258C56CB7452C61" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/78AB7E07285F738A3258C56CB7452C61"/>
+				<Item Name="B341DD02D6044823E8E2B744E1895E49" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/B341DD02D6044823E8E2B744E1895E49"/>
+				<Item Name="5E7F82395CB0D64F80A557806C49C9D2" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/5E7F82395CB0D64F80A557806C49C9D2"/>
+				<Item Name="198C5FE86D89E7398D12C950158AF01E" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/198C5FE86D89E7398D12C950158AF01E"/>
+				<Item Name="24147D969DC0ECA8881BC919B1912EC1" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/24147D969DC0ECA8881BC919B1912EC1"/>
+				<Item Name="8A1194E50A27E23AE692759525B421FC" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/8A1194E50A27E23AE692759525B421FC"/>
+				<Item Name="9B5E4C9504FD61BFD6E52C2D8CEFC369" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/9B5E4C9504FD61BFD6E52C2D8CEFC369"/>
+				<Item Name="E18F952550ED6DB828492CD08DE2D071" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/E18F952550ED6DB828492CD08DE2D071"/>
+				<Item Name="64938AD5B0F89EF21BC2AEECC1D124DA" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/64938AD5B0F89EF21BC2AEECC1D124DA"/>
+				<Item Name="7123514E1A54631E00C74AAEB1674BA8" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/7123514E1A54631E00C74AAEB1674BA8"/>
+				<Item Name="8B94A161BA9D5E771978FD137C2B0BD1" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/8B94A161BA9D5E771978FD137C2B0BD1"/>
+				<Item Name="04D8984D417B8D5B262958BD1FC8EEBD" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/04D8984D417B8D5B262958BD1FC8EEBD"/>
+				<Item Name="07DA3CFAE180901AD5A4BF41C67AB91F" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/07DA3CFAE180901AD5A4BF41C67AB91F"/>
+				<Item Name="BF2BAEA2BB8A40265AB9D3E316D0B8E6" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/BF2BAEA2BB8A40265AB9D3E316D0B8E6"/>
+				<Item Name="8D63F4CBEC41D75AE8B1B3EA9B8C6DE9" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/8D63F4CBEC41D75AE8B1B3EA9B8C6DE9"/>
+				<Item Name="3F0819FC95B14052312BBFB6096687F3" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/3F0819FC95B14052312BBFB6096687F3"/>
+				<Item Name="EAD7F730C447174E1302222EB445E3DD" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/EAD7F730C447174E1302222EB445E3DD"/>
+				<Item Name="Date Type Format String Mapping__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Date Type Format String Mapping__jki_lib_data_manipulation.vi"/>
+				<Item Name="Remove Comments from XML__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Remove Comments from XML__jki_lib_data_manipulation.vi"/>
+				<Item Name="XML Get Node Data by Variant (native)__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/XML Get Node Data by Variant (native)__jki_lib_data_manipulation.vi"/>
+				<Item Name="Treat Entity Name__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Treat Entity Name__jki_lib_data_manipulation.vi"/>
+				<Item Name="Get Node Data (native)__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Get Node Data (native)__jki_lib_data_manipulation.vi"/>
+				<Item Name="Get Node Data (native) (String)__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Get Node Data (native) (String)__jki_lib_data_manipulation.vi"/>
+				<Item Name="Get Child Nodes by Name (native)__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Get Child Nodes by Name (native)__jki_lib_data_manipulation.vi"/>
+				<Item Name="Parse Entity__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Parse Entity__jki_lib_data_manipulation.vi"/>
+				<Item Name="FindFirstTag with Attributes__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/FindFirstTag with Attributes__jki_lib_data_manipulation.vi"/>
+				<Item Name="Find Element and Attributes__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Find Element and Attributes__jki_lib_data_manipulation.vi"/>
+				<Item Name="Get Element and Attributes from Tag__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Get Element and Attributes from Tag__jki_lib_data_manipulation.vi"/>
+				<Item Name="FindMatchingCloseTag_NIMOD__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/FindMatchingCloseTag_NIMOD__jki_lib_data_manipulation.vi"/>
+				<Item Name="FindElementStartByName_NIMOD__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/FindElementStartByName_NIMOD__jki_lib_data_manipulation.vi"/>
+				<Item Name="ParseXMLFragments with Attributes__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/ParseXMLFragments with Attributes__jki_lib_data_manipulation.vi"/>
+				<Item Name="Get Node Attribute (native) (String)__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Get Node Attribute (native) (String)__jki_lib_data_manipulation.vi"/>
+				<Item Name="Escape-Unescape String for XML__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Escape-Unescape String for XML__jki_lib_data_manipulation.vi"/>
+				<Item Name="Get Node Data (native) (I64)__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Get Node Data (native) (I64)__jki_lib_data_manipulation.vi"/>
+				<Item Name="Get Node Data (native) (DBL)__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Get Node Data (native) (DBL)__jki_lib_data_manipulation.vi"/>
+				<Item Name="Get Node Data (native) (U64)__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Get Node Data (native) (U64)__jki_lib_data_manipulation.vi"/>
+				<Item Name="Get Node Data (native) (Boolean)__jki_lib_data_manipulation.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_data_manipulation.llb/Get Node Data (native) (Boolean)__jki_lib_data_manipulation.vi"/>
+				<Item Name="LV70TimeStampToDateRec.vi" Type="VI" URL="/&lt;vilib&gt;/_oldvers/_oldvers.llb/LV70TimeStampToDateRec.vi"/>
+				<Item Name="D78455BBBF7DA1A0CBEEC5A0546C94E7" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/D78455BBBF7DA1A0CBEEC5A0546C94E7"/>
+				<Item Name="72015F55E29C61E0E4957164AEC9E721" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/72015F55E29C61E0E4957164AEC9E721"/>
+				<Item Name="9F6EDB67C3F3AB1B744ED8C8D372AC3A" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/9F6EDB67C3F3AB1B744ED8C8D372AC3A"/>
+				<Item Name="1A880BAFDF3703EC5DE06451C68089C2" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/1A880BAFDF3703EC5DE06451C68089C2"/>
+				<Item Name="A19D3A89C0B62964FCBBEA07F4F71D79" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/A19D3A89C0B62964FCBBEA07F4F71D79"/>
+				<Item Name="0B2CF1698B5AF2981F38B211F0C91589" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/0B2CF1698B5AF2981F38B211F0C91589"/>
+				<Item Name="EC91B6CAD2F13B4B68E790C8775B869D" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/EC91B6CAD2F13B4B68E790C8775B869D"/>
+				<Item Name="8B793430966E20A365ADFD02A94B10A7" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/8B793430966E20A365ADFD02A94B10A7"/>
+				<Item Name="AA26C63A4E705DEDA43A1D7B514F0B59" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/AA26C63A4E705DEDA43A1D7B514F0B59"/>
+				<Item Name="EB4CF8533ADD077E16DEBEF651F4DE55" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/EB4CF8533ADD077E16DEBEF651F4DE55"/>
+				<Item Name="61B4AD13CDBA0D73AED27589C78D4494" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/61B4AD13CDBA0D73AED27589C78D4494"/>
+				<Item Name="038A0A9676353788687AF09FCF96C01D" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/038A0A9676353788687AF09FCF96C01D"/>
+				<Item Name="7229FF46ABDFED088AD501E5B9EA20C3" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/7229FF46ABDFED088AD501E5B9EA20C3"/>
+				<Item Name="0CE9E824BA18B963D0F817DC5EEEEB55" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/0CE9E824BA18B963D0F817DC5EEEEB55"/>
+				<Item Name="69ABFDDF5A2400371CD2DC1243032925" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/69ABFDDF5A2400371CD2DC1243032925"/>
+				<Item Name="D27911EB8F430CC4EB0AAAFC66FFE80F" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/D27911EB8F430CC4EB0AAAFC66FFE80F"/>
+				<Item Name="A1216370A02D8AB53CAAE5850E35BD85" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/A1216370A02D8AB53CAAE5850E35BD85"/>
+				<Item Name="4DD2C9C49B7576F0ADFAD148A464A704" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/4DD2C9C49B7576F0ADFAD148A464A704"/>
+				<Item Name="17E2316A971D166F72E4169581606C35" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/17E2316A971D166F72E4169581606C35"/>
+				<Item Name="D8D178358751040FA5E33C0A342413F5" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/D8D178358751040FA5E33C0A342413F5"/>
+				<Item Name="572A7B709DBB7A096B91A9AC8C7046E7" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/572A7B709DBB7A096B91A9AC8C7046E7"/>
+				<Item Name="727D9D9D9B25ADE0A498F5955572348E" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/727D9D9D9B25ADE0A498F5955572348E"/>
+				<Item Name="312000090AE897638F963712193F5AC7" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/312000090AE897638F963712193F5AC7"/>
+				<Item Name="84D12309577CBA3238C8070306165A62" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/84D12309577CBA3238C8070306165A62"/>
+				<Item Name="BC4D9A72A50308B731204B74AF1BBA37" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/BC4D9A72A50308B731204B74AF1BBA37"/>
+				<Item Name="32E72A01E6EE9A9F1E012F22E54307B8" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/32E72A01E6EE9A9F1E012F22E54307B8"/>
+				<Item Name="FADC5F5B44A3CB43BC2A4DC084FBDE3C" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/FADC5F5B44A3CB43BC2A4DC084FBDE3C"/>
+				<Item Name="D4074A34D182ECDB27DA6F8D1EF05657" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/D4074A34D182ECDB27DA6F8D1EF05657"/>
+				<Item Name="A77A62F2655EEB5CE4C08B00E96F9E85" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/A77A62F2655EEB5CE4C08B00E96F9E85"/>
+				<Item Name="BEE0CBB693188CFECEFE3E47B0608671" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/BEE0CBB693188CFECEFE3E47B0608671"/>
+				<Item Name="6CF0520A51B11422E91C2267BE201AF6" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/6CF0520A51B11422E91C2267BE201AF6"/>
+				<Item Name="ED6961A0294BA92449922C11DB7E4537" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/ED6961A0294BA92449922C11DB7E4537"/>
+				<Item Name="531E43D3E3596072DB344E46C2EC97D8" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/EasyXML/JKI_EasyXML.llb/531E43D3E3596072DB344E46C2EC97D8"/>
+				<Item Name="LV70U32ToDateRec.vi" Type="VI" URL="/&lt;vilib&gt;/_oldvers/_oldvers.llb/LV70U32ToDateRec.vi"/>
+				<Item Name="Version Integer - Cluster -__jki_lib_project_build_tools.ctl" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_project_build_tools.llb/Version Integer - Cluster -__jki_lib_project_build_tools.ctl"/>
+				<Item Name="Alphs Blend Glyphs __jki_lib_picture__jki_lib_tree_control.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_tree_control.llb/Alphs Blend Glyphs __jki_lib_picture__jki_lib_tree_control.vi"/>
+				<Item Name="Draw Flatten Pixmap__jki_lib_picture__jki_lib_tree_control.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_tree_control.llb/Draw Flatten Pixmap__jki_lib_picture__jki_lib_tree_control.vi"/>
+				<Item Name="Draw Flattened Pixmap (Fast)__jki_lib_picture__jki_lib_tree_control.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_tree_control.llb/Draw Flattened Pixmap (Fast)__jki_lib_picture__jki_lib_tree_control.vi"/>
+				<Item Name="Create Mask By Alpha - Advanced -__jki_lib_picture__jki_lib_tree_control.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_tree_control.llb/Create Mask By Alpha - Advanced -__jki_lib_picture__jki_lib_tree_control.vi"/>
+				<Item Name="TREE_Get Children__jki_lib_tree_control.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_tree_control.llb/TREE_Get Children__jki_lib_tree_control.vi"/>
+				<Item Name="TREE_Get Current__jki_lib_tree_control.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_tree_control.llb/TREE_Get Current__jki_lib_tree_control.vi"/>
+				<Item Name="IconInfo.ctl" Type="VI" URL="/&lt;vilib&gt;/Platform/icon.llb/IconInfo.ctl"/>
+				<Item Name="Read ICO File Header.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/icon.llb/Read ICO File Header.vi"/>
+				<Item Name="Read BMP Data.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/icon.llb/Read BMP Data.vi"/>
+				<Item Name="Apply Mask to Pixmap.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/icon.llb/Apply Mask to Pixmap.vi"/>
+				<Item Name="Unflatten Pixmap(6_1).vi" Type="VI" URL="/&lt;vilib&gt;/picture/pixmap.llb/Unflatten Pixmap(6_1).vi"/>
+				<Item Name="Flatten Pixmap(6_1).vi" Type="VI" URL="/&lt;vilib&gt;/picture/pixmap.llb/Flatten Pixmap(6_1).vi"/>
+				<Item Name="Apply Mask to 32-bit Image.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/icon.llb/Apply Mask to 32-bit Image.vi"/>
+				<Item Name="Create Palettized Image Data.vi" Type="VI" URL="/&lt;vilib&gt;/Platform/icon.llb/Create Palettized Image Data.vi"/>
+				<Item Name="Increment Version Number__jki_lib_application_control.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_application_control.llb/Increment Version Number__jki_lib_application_control.vi"/>
+				<Item Name="Increment Action - Enum__jki_lib_application_control.ctl" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI.lib/_jki_lib_application_control.llb/Increment Action - Enum__jki_lib_application_control.ctl"/>
+				<Item Name="Write Registry Value.vi" Type="VI" URL="/&lt;vilib&gt;/registry/registry.llb/Write Registry Value.vi"/>
+				<Item Name="Write Registry Value STR.vi" Type="VI" URL="/&lt;vilib&gt;/registry/registry.llb/Write Registry Value STR.vi"/>
+				<Item Name="Write Registry Value DWORD.vi" Type="VI" URL="/&lt;vilib&gt;/registry/registry.llb/Write Registry Value DWORD.vi"/>
+				<Item Name="Acquire Input Data.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/inputDevices.llb/Acquire Input Data.vi"/>
+				<Item Name="joystickAcquire.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/inputDevices.llb/joystickAcquire.vi"/>
+				<Item Name="errorList.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/inputDevices.llb/errorList.vi"/>
+				<Item Name="ErrorDescriptions.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/inputDevices.llb/ErrorDescriptions.vi"/>
+				<Item Name="keyboardAcquire.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/inputDevices.llb/keyboardAcquire.vi"/>
+				<Item Name="mouseAcquire.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/inputDevices.llb/mouseAcquire.vi"/>
+				<Item Name="Close Input Device.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/inputDevices.llb/Close Input Device.vi"/>
+				<Item Name="closeJoystick.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/inputDevices.llb/closeJoystick.vi"/>
+				<Item Name="closeKeyboard.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/inputDevices.llb/closeKeyboard.vi"/>
+				<Item Name="closeMouse.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/inputDevices.llb/closeMouse.vi"/>
+				<Item Name="Initialize Mouse.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/inputDevices.llb/Initialize Mouse.vi"/>
 			</Item>
-			<Item Name="lv_reqwest_64.so" Type="Document" URL="../lv_reqwest_64.so"/>
 			<Item Name="JKI_API.lvclass" Type="LVClass" URL="../../../vipm-desktop/source/JKI APIs/JKI_API.lvclass"/>
 			<Item Name="NI HTTP -- SmartPathToString -- JKI VIPM.vi" Type="VI" URL="../../../vipm-desktop/source/JKI Reuse Pool/HTTP/NI HTTP -- SmartPathToString -- JKI VIPM.vi"/>
 			<Item Name="NI HTTP - Get Lib -- JKI VIPM.vi" Type="VI" URL="../../../vipm-desktop/source/JKI Reuse Pool/HTTP/NI HTTP - Get Lib -- JKI VIPM.vi"/>
@@ -867,9 +1043,6 @@
 			<Item Name="Write to RSS File.vi" Type="VI" URL="../../../vipm-desktop/source/JKI Reuse Pool/RSS/Write to RSS File.vi"/>
 			<Item Name="VIRM RSS Channel - Cluster.ctl" Type="VI" URL="../../../vipm-desktop/source/JKI Reuse Pool/RSS/VIRM RSS Channel - Cluster.ctl"/>
 			<Item Name="VIRM RSS - Cluster.ctl" Type="VI" URL="../../../vipm-desktop/source/JKI Reuse Pool/RSS/VIRM RSS - Cluster.ctl"/>
-			<Item Name="USER32.DLL" Type="Document" URL="USER32.DLL">
-				<Property Name="NI.PreserveRelativePath" Type="Bool">true</Property>
-			</Item>
 			<Item Name="Parse rfc 822 Datetime String.vi" Type="VI" URL="../../../vipm-desktop/source/JKI Reuse Pool/RSS/Parse rfc 822 Datetime String.vi"/>
 			<Item Name="OGPM Read Spec File.vi" Type="VI" URL="../../../vipm-desktop/source/OGPM/Support/Package File IO/Spec File IO/OGPM Read Spec File.vi"/>
 			<Item Name="OGPM Read Files from Spec File.vi" Type="VI" URL="../../../vipm-desktop/source/OGPM/Support/Package File IO/Spec File IO/OGPM Read Files from Spec File.vi"/>
@@ -2404,6 +2577,22 @@
 			<Item Name="VIRM Assistant Engine.vi" Type="VI" URL="../../../vipm-desktop/source/Repository Manger/Support/VIRM Assistant Engine.vi"/>
 			<Item Name="VIPM General Tree Color on Value Changed (Multi-Select).vi" Type="VI" URL="../../../vipm-desktop/source/Main/Misc/VIPM General Tree Color on Value Changed (Multi-Select).vi"/>
 			<Item Name="VIRM RepMgr - TEST -.vi" Type="VI" URL="../../../vipm-desktop/source/Repository Manger/Tests/VIRM RepMgr - TEST -.vi"/>
+			<Item Name="lv_reqwest_64.dll" Type="Document" URL="../lv_reqwest_64.dll"/>
+			<Item Name="Advapi32.dll" Type="Document" URL="Advapi32.dll">
+				<Property Name="NI.PreserveRelativePath" Type="Bool">true</Property>
+			</Item>
+			<Item Name="version.dll" Type="Document" URL="version.dll">
+				<Property Name="NI.PreserveRelativePath" Type="Bool">true</Property>
+			</Item>
+			<Item Name="lvinput.dll" Type="Document" URL="/&lt;resource&gt;/lvinput.dll"/>
+			<Item Name="dotNetHTTP.lvlib" Type="Library" URL="../../../vipm-desktop/source/JKI Reuse Pool/HTTP/dotNetHTTP/dotNetHTTP.lvlib"/>
+			<Item Name="System.Net.Http" Type="Document" URL="System.Net.Http">
+				<Property Name="NI.PreserveRelativePath" Type="Bool">true</Property>
+			</Item>
+			<Item Name="System" Type="VI" URL="System">
+				<Property Name="NI.PreserveRelativePath" Type="Bool">true</Property>
+			</Item>
+			<Item Name="start_get_request.vi" Type="VI" URL="../Client/start_get_request.vi"/>
 		</Item>
 		<Item Name="Build Specifications" Type="Build"/>
 	</Item>
