@@ -30,8 +30,8 @@ lazy_static::lazy_static! {
             .expect("Failed to create global Tokio runtime");
 }
 
-// Helper function to get next request ID
-fn next_request_id() -> RequestId {
+// Helper function to create a new request ID
+fn request_builder_new_request_id() -> RequestId {
     let mut id = NEXT_REQUEST_ID.lock().unwrap();
     let current = *id;
     *id += 1;
@@ -39,13 +39,13 @@ fn next_request_id() -> RequestId {
 }
 
 // Helper function to register a request with a client
-fn register_request(client_id: ClientId, request_id: RequestId) {
+fn client_register_request(client_id: ClientId, request_id: RequestId) {
     let mut client_requests = CLIENT_REQUESTS.lock().unwrap();
     client_requests.entry(client_id).or_insert_with(HashSet::new).insert(request_id);
 }
 
 // Helper function to mark all requests for a client as cancelled
-fn cancel_client_requests(client_id: ClientId) {
+fn client_cancel_requests(client_id: ClientId) {
     let requests_to_cancel = {
         let mut client_requests = CLIENT_REQUESTS.lock().unwrap();
         client_requests.remove(&client_id).unwrap_or_default()
@@ -62,7 +62,7 @@ fn cancel_client_requests(client_id: ClientId) {
     }
 }
 
-// Struct to track request progress
+// Struct to track progress of the request (i.e. the response)
 struct RequestProgress {
     status: RequestStatus,
     total_bytes: Option<u64>,
@@ -108,6 +108,45 @@ pub extern "C" fn headers_free(map_ptr: *mut HeaderMapWrapper) {
     }
 }
 
+// Get all headers as a multi-line string with "key: value" format
+#[no_mangle]
+pub extern "C" fn headers_get_all(
+    map_ptr: *mut HeaderMapWrapper,
+    num_bytes: *mut u32,
+) -> *mut c_char {
+    if num_bytes.is_null() {
+        return ptr::null_mut();
+    }
+    if map_ptr.is_null() {
+        unsafe { *num_bytes = 0 };
+        return ptr::null_mut();
+    }
+
+    let header_map = unsafe { &(*map_ptr).0 };
+    let mut headers_vec: Vec<String> = Vec::new();
+
+    for (key, value) in header_map.iter() {
+        let value_str = String::from_utf8_lossy(value.as_bytes());
+        headers_vec.push(format!("{}: {}", key.as_str(), &value_str));
+    }
+
+    let result_str = headers_vec.join("\n");
+    let result_len = result_str.len();
+
+    let c_str_ptr = unsafe { libc::malloc(result_len + 1) as *mut c_char };
+    if c_str_ptr.is_null() {
+        unsafe { *num_bytes = 0 };
+        return ptr::null_mut();
+    }
+
+    unsafe {
+        ptr::copy_nonoverlapping(result_str.as_ptr(), c_str_ptr as *mut u8, result_len);
+        *(c_str_ptr.add(result_len)) = 0;
+        *num_bytes = result_len as u32;
+    }
+    c_str_ptr
+}
+
 // Add a header to the map
 #[no_mangle]
 pub extern "C" fn headers_add(
@@ -149,17 +188,17 @@ pub extern "C" fn headers_add(
 }
 
 // Wrapper for the reqwest ClientBuilder
-pub struct ClientWrapperBuilder(ClientBuilder);
+pub struct ClientBuilderWrapper(ClientBuilder);
 
 // Create a new client builder
 #[no_mangle]
-pub extern "C" fn client_builder_new() -> *mut ClientWrapperBuilder {
-    Box::into_raw(Box::new(ClientWrapperBuilder(Client::builder())))
+pub extern "C" fn client_builder_new() -> *mut ClientBuilderWrapper {
+    Box::into_raw(Box::new(ClientBuilderWrapper(Client::builder())))
 }
 
 // Free a client builder if it's not used
 #[no_mangle]
-pub extern "C" fn client_builder_free(builder_ptr: *mut ClientWrapperBuilder) {
+pub extern "C" fn client_builder_free(builder_ptr: *mut ClientBuilderWrapper) {
     if builder_ptr.is_null() {
         return;
     }
@@ -171,7 +210,7 @@ pub extern "C" fn client_builder_free(builder_ptr: *mut ClientWrapperBuilder) {
 // Set default headers for the client
 #[no_mangle]
 pub extern "C" fn client_builder_default_headers(
-    builder_ptr: *mut ClientWrapperBuilder,
+    builder_ptr: *mut ClientBuilderWrapper,
     headers_ptr: *mut HeaderMapWrapper,
 ) -> bool {
     if builder_ptr.is_null() {
@@ -194,7 +233,7 @@ pub extern "C" fn client_builder_default_headers(
 // Set timeout for the client
 #[no_mangle]
 pub extern "C" fn client_builder_timeout_ms(
-    builder_ptr: *mut ClientWrapperBuilder,
+    builder_ptr: *mut ClientBuilderWrapper,
     timeout_ms: u64,
 ) -> bool {
     if builder_ptr.is_null() {
@@ -212,7 +251,7 @@ pub extern "C" fn client_builder_timeout_ms(
 // Set connect_timeout for the client
 #[no_mangle]
 pub extern "C" fn client_builder_connect_timeout_ms(
-    builder_ptr: *mut ClientWrapperBuilder,
+    builder_ptr: *mut ClientBuilderWrapper,
     connect_timeout_ms: u64,
 ) -> bool {
     if builder_ptr.is_null() {
@@ -230,7 +269,7 @@ pub extern "C" fn client_builder_connect_timeout_ms(
 // Set whether to accept invalid certificates
 #[no_mangle]
 pub extern "C" fn client_builder_danger_accept_invalid_certs(
-    builder_ptr: *mut ClientWrapperBuilder,
+    builder_ptr: *mut ClientBuilderWrapper,
     accept: bool,
 ) -> bool {
     if builder_ptr.is_null() {
@@ -247,7 +286,7 @@ pub extern "C" fn client_builder_danger_accept_invalid_certs(
 // Build the client from the builder
 #[no_mangle]
 pub extern "C" fn client_builder_build(
-    builder_ptr: *mut ClientWrapperBuilder,
+    builder_ptr: *mut ClientBuilderWrapper,
 ) -> *mut c_void {
     if builder_ptr.is_null() {
         return ptr::null_mut();
@@ -286,7 +325,7 @@ pub extern "C" fn client_close(client_ptr: *mut c_void) {
     let client_id = client_ptr as usize;
     
     // Cancel all pending requests for this client
-    cancel_client_requests(client_id);
+    client_cancel_requests(client_id);
     
     // Wait for any pending operations to complete
     GLOBAL_RUNTIME.block_on(async {
@@ -763,7 +802,7 @@ pub extern "C" fn request_builder_send(
     };
 
     // Create a new request ID
-    let request_id = next_request_id();
+    let request_id = request_builder_new_request_id();
 
     // Create progress tracking
     let progress_info = Arc::new(RwLock::new(RequestProgress {
@@ -780,7 +819,7 @@ pub extern "C" fn request_builder_send(
     }
 
     // Register this request with the client
-    register_request(client_id, request_id);
+    client_register_request(client_id, request_id);
 
     // Use the global runtime to process the request
     GLOBAL_RUNTIME.spawn(async move {
