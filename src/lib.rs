@@ -2,6 +2,7 @@ use libc::c_char;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
     Client, ClientBuilder, StatusCode, RequestBuilder,
+    tls,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -16,18 +17,39 @@ mod async_support;
 
 // Types to track ongoing requests
 type RequestId = u64;
-type ClientId = usize;
+type ClientId = u64;
 type ProgressInfo = Arc<RwLock<RequestProgress>>;
 
 // Global runtime and request tracker
 lazy_static::lazy_static! {
     static ref REQUEST_TRACKER: Mutex<HashMap<RequestId, ProgressInfo>> = Mutex::new(HashMap::new());
     static ref NEXT_REQUEST_ID: Mutex<RequestId> = Mutex::new(1);
+    static ref CLIENTS: Mutex<HashMap<ClientId, ClientWrapper>> = Mutex::new(HashMap::new());
+    static ref NEXT_CLIENT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
     static ref CLIENT_REQUESTS: Mutex<HashMap<ClientId, HashSet<RequestId>>> = Mutex::new(HashMap::new());
     static ref GLOBAL_RUNTIME: tokio::runtime::Runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .expect("Failed to create global Tokio runtime");
+}
+
+// Thread-local storage for the last error message
+thread_local! {
+    static LAST_ERROR: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
+}
+
+// Helper function to set the last error message
+fn set_last_error(error: String) {
+    LAST_ERROR.with(|cell| {
+        *cell.borrow_mut() = Some(error);
+    });
+}
+
+// Helper function to get and clear the last error message
+fn take_last_error() -> Option<String> {
+    LAST_ERROR.with(|cell| {
+        cell.borrow_mut().take()
+    })
 }
 
 // Helper function to create a new request ID
@@ -188,12 +210,16 @@ pub extern "C" fn headers_add(
 }
 
 // Wrapper for the reqwest ClientBuilder
-pub struct ClientBuilderWrapper(ClientBuilder);
+pub struct ClientBuilderWrapper {
+    builder: ClientBuilder,
+}
 
 // Create a new client builder
 #[no_mangle]
 pub extern "C" fn client_builder_new() -> *mut ClientBuilderWrapper {
-    Box::into_raw(Box::new(ClientBuilderWrapper(Client::builder())))
+    Box::into_raw(Box::new(ClientBuilderWrapper {
+        builder: Client::builder(),
+    }))
 }
 
 // Free a client builder if it's not used
@@ -224,9 +250,9 @@ pub extern "C" fn client_builder_default_headers(
 
     let builder = unsafe {
         // an unsafe block is required to dereference the raw pointer
-        std::mem::take(&mut (*builder_ptr).0)
+        std::mem::take(&mut (*builder_ptr).builder)
     };
-    unsafe { &mut *builder_ptr }.0 = builder.default_headers(headers);
+    unsafe { &mut *builder_ptr }.builder = builder.default_headers(headers);
     true
 }
 
@@ -241,9 +267,9 @@ pub extern "C" fn client_builder_timeout_ms(
     }
     let builder = unsafe {
         // an unsafe block is required to dereference the raw pointer
-        std::mem::take(&mut (*builder_ptr).0)
+        std::mem::take(&mut (*builder_ptr).builder)
     };
-    unsafe { &mut *builder_ptr }.0 = builder
+    unsafe { &mut *builder_ptr }.builder = builder
         .timeout(Duration::from_millis(timeout_ms));
     true
 }
@@ -259,9 +285,9 @@ pub extern "C" fn client_builder_connect_timeout_ms(
     }
     let builder = unsafe {
         // an unsafe block is required to dereference the raw pointer
-        std::mem::take(&mut (*builder_ptr).0)
+        std::mem::take(&mut (*builder_ptr).builder)
     };
-    unsafe { &mut *builder_ptr }.0 = builder
+    unsafe { &mut *builder_ptr }.builder = builder
         .connect_timeout(Duration::from_millis(connect_timeout_ms));
     true
 }
@@ -277,52 +303,131 @@ pub extern "C" fn client_builder_danger_accept_invalid_certs(
     }
     let builder = unsafe {
         // an unsafe block is required to dereference the raw pointer
-        std::mem::take(&mut (*builder_ptr).0)
+        std::mem::take(&mut (*builder_ptr).builder)
     };
-    unsafe { &mut *builder_ptr }.0 = builder.danger_accept_invalid_certs(accept);
+    unsafe { &mut *builder_ptr }.builder = builder.danger_accept_invalid_certs(accept);
     true
 }
+
+// TLS Version constants
+// These values should match the enum values defined in LabVIEW if any.
+// We only expose the versions relevant for testing this feature.
+const TLS_VERSION_1_2: u8 = 1;
+const TLS_VERSION_1_3: u8 = 2;
+
+// Helper function to convert version integer to reqwest::tls::Version
+fn convert_tls_version(version: u8) -> Option<tls::Version> {
+    match version {
+        TLS_VERSION_1_2 => Some(tls::Version::TLS_1_2),
+        TLS_VERSION_1_3 => Some(tls::Version::TLS_1_3),
+        _ => None,
+    }
+}
+
+// Set the minimum TLS version
+#[no_mangle]
+pub extern "C" fn client_builder_min_tls_version(
+    builder_ptr: *mut ClientBuilderWrapper,
+    version: u8,
+) -> bool {
+    if builder_ptr.is_null() {
+        return false;
+    }
+
+    let tls_version = match convert_tls_version(version) {
+        Some(v) => v,
+        None => return false,
+    };
+    
+    let builder = unsafe {
+        std::mem::take(&mut (*builder_ptr).builder)
+    };
+    unsafe { &mut *builder_ptr }.builder = builder.min_tls_version(tls_version);
+    true
+}
+
+
+// Set HTTPS proxy for the client
+#[no_mangle]
+pub extern "C" fn client_builder_set_https_proxy(
+    builder_ptr: *mut ClientBuilderWrapper,
+    proxy_url: *const c_char,
+) -> bool {
+    if builder_ptr.is_null() || proxy_url.is_null() {
+        return false;
+    }
+
+    let proxy_url_str = unsafe {
+        match CStr::from_ptr(proxy_url).to_str() {
+            Ok(s) => s,
+            Err(_) => {
+                set_last_error("Invalid UTF-8 in proxy URL".to_string());
+                return false;
+            }
+        }
+    };
+
+    let proxy = match reqwest::Proxy::https(proxy_url_str) {
+        Ok(p) => p,
+        Err(e) => {
+            // This can fail if the URL is invalid.
+            set_last_error(format!("Invalid proxy URL: {}", e));
+            return false;
+        }
+    };
+
+    let builder = unsafe {
+        // an unsafe block is required to dereference the raw pointer
+        std::mem::take(&mut (*builder_ptr).builder)
+    };
+    unsafe { &mut *builder_ptr }.builder = builder.proxy(proxy);
+    true
+}
+
 
 // Build the client from the builder
 #[no_mangle]
 pub extern "C" fn client_builder_build(
     builder_ptr: *mut ClientBuilderWrapper,
-) -> *mut c_void {
+) -> ClientId {
     if builder_ptr.is_null() {
-        return ptr::null_mut();
+        return 0;
     }
 
-    let builder = unsafe { Box::from_raw(builder_ptr) };
+    let builder_wrapper = unsafe { Box::from_raw(builder_ptr) };
 
     // Use the global runtime to build the client
-    let client = GLOBAL_RUNTIME.block_on(async {
-        match builder.0.build() {
-            Ok(c) => c,
-            Err(e) => {
-                println!("Failed to build client: {}", e);
-                return Client::builder().build().unwrap(); // Fallback to default client as a last resort
-            }
-        }
+    let client_result = GLOBAL_RUNTIME.block_on(async {
+        builder_wrapper.builder.build()
     });
 
-    let client_wrapper = Box::new(ClientWrapper(client));
-    let client_ptr = Box::into_raw(client_wrapper) as *mut c_void;
-    
-    // Initialize an empty set of request IDs for this client
-    let client_id = client_ptr as usize;
-    CLIENT_REQUESTS.lock().unwrap().insert(client_id, HashSet::new());
-    
-    client_ptr
+    match client_result {
+        Ok(client) => {
+            let client_wrapper = ClientWrapper(client);
+            let client_id = NEXT_CLIENT_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            
+            let mut clients = CLIENTS.lock().unwrap();
+            clients.insert(client_id, client_wrapper);
+
+            // Initialize an empty set of request IDs for this client
+            CLIENT_REQUESTS.lock().unwrap().insert(client_id, HashSet::new());
+            
+            client_id
+        },
+        Err(e) => {
+            // Store the error message for later retrieval
+            set_last_error(format!("Failed to build client: {}", e));
+            0 // Return 0 to indicate failure
+        }
+    }
 }
 
 // Close a reqwest client and free the memory
 #[no_mangle]
-pub extern "C" fn client_close(client_ptr: *mut c_void) {
-    if client_ptr.is_null() {
+pub extern "C" fn client_close(client_id: ClientId) {
+    if client_id == 0 {
         return;
     }
-
-    let client_id = client_ptr as usize;
     
     // Cancel all pending requests for this client
     client_cancel_requests(client_id);
@@ -333,8 +438,9 @@ pub extern "C" fn client_close(client_ptr: *mut c_void) {
         tokio::time::sleep(Duration::from_millis(100)).await;
     });
     
-    // Now it's safe to drop the client
-    let _ = unsafe { Box::from_raw(client_ptr as *mut ClientWrapper) };
+    // Remove and drop the client
+    let mut clients = CLIENTS.lock().unwrap();
+    clients.remove(&client_id);
     
     // Yield to ensure proper cleanup
     GLOBAL_RUNTIME.block_on(async {
@@ -651,16 +757,20 @@ impl RequestBuilderWrapper {
 // method: HTTP method as an integer (1=GET, 2=POST, 3=PUT, 4=DELETE, etc.)
 #[no_mangle]
 pub extern "C" fn client_new_request_builder(
-    client_ptr: *mut c_void,
+    client_id: ClientId,
     method: u8,
     url: *const c_char,
 ) -> *mut RequestBuilderWrapper {
-    if client_ptr.is_null() || url.is_null() {
+    if client_id == 0 || url.is_null() {
         return ptr::null_mut();
     }
 
-    let client = unsafe { &*(client_ptr as *const ClientWrapper) };
-    let client_id = client_ptr as usize;
+    let clients = CLIENTS.lock().unwrap();
+    let client = if let Some(c) = clients.get(&client_id) {
+        c
+    } else {
+        return ptr::null_mut();
+    };
     
     let url_str = match unsafe { CStr::from_ptr(url).to_str() } {
         Ok(s) => s,
@@ -743,8 +853,7 @@ pub extern "C" fn request_builder_body(
         ""
     };
     
-    let builder = unsafe { &mut *builder_ptr };
-    builder.with_builder(|b| b.body(body_str.to_string()))
+    unsafe { &mut *builder_ptr }.with_builder(|b| b.body(body_str.to_string()))
 }
 
 // Set the output file path for the request, which will cause the response to be streamed to the file.
@@ -865,8 +974,7 @@ pub extern "C" fn request_builder_header(
         Err(_) => return false,
     };
 
-    let builder = unsafe { &mut *builder_ptr };
-    builder.with_builder(|b| b.header(header_name, header_value))
+    unsafe { &mut *builder_ptr }.with_builder(|b| b.header(header_name, header_value))
 }
 
 // Set query parameters
@@ -893,8 +1001,7 @@ pub extern "C" fn request_builder_query(
         return false;
     }
 
-    let builder = unsafe { &mut *builder_ptr };
-    builder.with_builder(|b| {
+    unsafe { &mut *builder_ptr }.with_builder(|b| {
         // Create a simple query param
         let query = [(key_str, value_str)];
         b.query(&query)
@@ -928,8 +1035,7 @@ pub extern "C" fn request_builder_basic_auth(
         None
     };
 
-    let builder = unsafe { &mut *builder_ptr };
-    builder.with_builder(|b| {
+    unsafe { &mut *builder_ptr }.with_builder(|b| {
         if let Some(pwd) = password_str {
             b.basic_auth(username_str, Some(pwd))
         } else {
@@ -955,8 +1061,7 @@ pub extern "C" fn request_builder_bearer_auth(
         }
     };
 
-    let builder = unsafe { &mut *builder_ptr };
-    builder.with_builder(|b| b.bearer_auth(token_str))
+    unsafe { &mut *builder_ptr }.with_builder(|b| b.bearer_auth(token_str))
 }
 
 // Set JSON body (convenience method that sets content-type header too)
@@ -982,8 +1087,7 @@ pub extern "C" fn request_builder_json(
         Err(_) => return false,
     };
 
-    let builder = unsafe { &mut *builder_ptr };
-    builder.with_builder(|b| b.json(&json_value))
+    unsafe { &mut *builder_ptr }.with_builder(|b| b.json(&json_value))
 }
 
 // Set a form parameter
@@ -1010,10 +1114,69 @@ pub extern "C" fn request_builder_form(
         return false;
     }
 
-    let builder = unsafe { &mut *builder_ptr };
-    builder.with_builder(|b| {
+    unsafe { &mut *builder_ptr }.with_builder(|b| {
         // Create a simple form param
         let form = [(key_str, value_str)];
         b.form(&form)
     })
+}
+
+// Get the last error message as a C string
+#[no_mangle]
+pub extern "C" fn get_last_error_message(num_bytes: *mut u32) -> *mut c_char {
+    if num_bytes.is_null() {
+        return ptr::null_mut();
+    }
+    
+    if let Some(error_message) = take_last_error() {
+        let error_len = error_message.len();
+        unsafe { *num_bytes = error_len as u32 };
+        
+        // Allocate memory for the string + null terminator
+        let c_str_ptr = unsafe { libc::malloc(error_len + 1) as *mut c_char };
+        if c_str_ptr.is_null() {
+            unsafe { *num_bytes = 0 };
+            return ptr::null_mut();
+        }
+        
+        // Copy the string and add null terminator
+        unsafe {
+            std::ptr::copy_nonoverlapping(error_message.as_ptr(), c_str_ptr as *mut u8, error_len);
+            *(c_str_ptr.add(error_len)) = 0;
+        }
+        
+        return c_str_ptr;
+    } else {
+        unsafe { *num_bytes = 0 };
+        ptr::null_mut() // Return null if no error message
+    }
+}
+
+// Set the User-Agent header for the client.
+#[no_mangle]
+pub extern "C" fn client_builder_user_agent(
+    builder_ptr: *mut ClientBuilderWrapper,
+    user_agent: *const c_char,
+) -> bool {
+    if builder_ptr.is_null() || user_agent.is_null() {
+        return false;
+    }
+
+    let user_agent_str = unsafe {
+        match CStr::from_ptr(user_agent).to_str() {
+            Ok(s) => s,
+            Err(_) => {
+                set_last_error("User agent contains invalid UTF-8".to_string());
+                return false;
+            }
+        }
+    };
+    
+    let builder = unsafe {
+        std::mem::take(&mut (*builder_ptr).builder)
+    };
+    // This can fail if the user_agent string is not a valid header value.
+    // The error is stored inside the builder and will be returned by `build()`.
+    unsafe { &mut *builder_ptr }.builder = builder.user_agent(user_agent_str);
+    true
 }
