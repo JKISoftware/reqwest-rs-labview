@@ -162,7 +162,7 @@ fn test_request_builder_api() {
         value.as_ptr()
     ));
 
-    // Send the request
+    // Send the request. On success, the builder is consumed.
     let mut request_id = request_builder_send(request_builder_ptr);
     assert!(request_id > 0);
 
@@ -256,7 +256,7 @@ fn test_request_builder_with_json() {
     let json = std::ffi::CString::new(r#"{"key":"value","test":123}"#).unwrap();
     assert!(request_builder_json(request_builder_ptr, json.as_ptr()));
 
-    // Send the request
+    // Send the request. On success, the builder is consumed.
     let mut request_id = request_builder_send(request_builder_ptr);
     assert!(request_id > 0);
 
@@ -328,15 +328,17 @@ fn test_request_builder_with_json() {
 
     // Cleanup
     free_memory(body_ptr);
+    request_builder_free(request_builder_ptr);
     request_cleanup(request_id);
+    client_builder_free(client_builder_ptr);
     client_close(client_id);
 }
 
 #[test]
 fn test_request_builder_query_params() {
     // Build a client
-    let builder_ptr = client_builder_new();
-    let client_id = client_builder_build(builder_ptr);
+    let client_builder_ptr = client_builder_new();
+    let client_id = client_builder_build(client_builder_ptr);
     assert!(client_id != 0);
 
     // Create a URL for testing
@@ -355,7 +357,7 @@ fn test_request_builder_query_params() {
         value.as_ptr()
     ));
 
-    // Send the request
+    // Send the request. On success, the builder is consumed.
     let mut request_id = request_builder_send(builder_ptr);
     assert!(request_id > 0);
 
@@ -425,15 +427,17 @@ fn test_request_builder_query_params() {
 
     // Cleanup
     free_memory(body_ptr);
+    request_builder_free(builder_ptr);
     request_cleanup(request_id);
+    client_builder_free(client_builder_ptr);
     client_close(client_id);
 }
 
 #[test]
 fn test_request_builder_auth() {
     // Build a client
-    let builder_ptr = client_builder_new();
-    let client_id = client_builder_build(builder_ptr);
+    let client_builder_ptr = client_builder_new();
+    let client_id = client_builder_build(client_builder_ptr);
     assert!(client_id != 0);
 
     // Create a URL for testing that requires auth
@@ -452,7 +456,7 @@ fn test_request_builder_auth() {
         password.as_ptr()
     ));
 
-    // Send the request
+    // Send the request. On success, the builder is consumed.
     let mut request_id = request_builder_send(builder_ptr);
     assert!(request_id > 0);
 
@@ -512,15 +516,17 @@ fn test_request_builder_auth() {
 
     // Cleanup
     free_memory(body_ptr);
+    request_builder_free(builder_ptr);
     request_cleanup(request_id);
+    client_builder_free(client_builder_ptr);
     client_close(client_id);
 }
 
 #[test]
 fn test_request_builder_form_data() {
     // Build a client
-    let builder_ptr = client_builder_new();
-    let client_id = client_builder_build(builder_ptr);
+    let client_builder_ptr = client_builder_new();
+    let client_id = client_builder_build(client_builder_ptr);
     assert!(client_id != 0);
 
     // Create a URL for testing
@@ -539,7 +545,7 @@ fn test_request_builder_form_data() {
         value.as_ptr()
     ));
 
-    // Send the request
+    // Send the request. On success, the builder is consumed.
     let mut request_id = request_builder_send(builder_ptr);
     assert!(request_id > 0);
 
@@ -609,15 +615,17 @@ fn test_request_builder_form_data() {
 
     // Cleanup
     free_memory(body_ptr);
+    request_builder_free(builder_ptr);
     request_cleanup(request_id);
+    client_builder_free(client_builder_ptr);
     client_close(client_id);
 }
 
 #[test]
 fn test_retry_mechanism() {
     // Build a client
-    let builder_ptr = client_builder_new();
-    let client_id = client_builder_build(builder_ptr);
+    let client_builder_ptr = client_builder_new();
+    let client_id = client_builder_build(client_builder_ptr);
     assert!(client_id != 0);
 
     // Create a URL for a non-existent endpoint that will return 404
@@ -628,7 +636,7 @@ fn test_retry_mechanism() {
     let builder_ptr = client_new_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
     assert!(!builder_ptr.is_null());
 
-    // Send the request
+    // Send the request. On success, the builder is consumed.
     let mut request_id = request_builder_send(builder_ptr);
     assert!(request_id > 0);
 
@@ -677,11 +685,11 @@ fn test_retry_mechanism() {
 
     // Now try with a 500 error endpoint
     let url_500 = std::ffi::CString::new("https://httpbin.org/status/500").unwrap();
-    let builder_ptr = client_new_request_builder(client_id, HTTP_METHOD_GET, url_500.as_ptr());
-    assert!(!builder_ptr.is_null());
+    let builder_ptr_500 = client_new_request_builder(client_id, HTTP_METHOD_GET, url_500.as_ptr());
+    assert!(!builder_ptr_500.is_null());
 
-    // Send the request
-    let mut request_id = request_builder_send(builder_ptr);
+    // Send the request. On success, the builder is consumed.
+    let mut request_id = request_builder_send(builder_ptr_500);
     assert!(request_id > 0);
 
     // Reset counters
@@ -731,7 +739,9 @@ fn test_retry_mechanism() {
     );
 
     // Cleanup
+    request_builder_free(builder_ptr_500);
     request_cleanup(request_id);
+    client_builder_free(client_builder_ptr);
     client_close(client_id);
 }
 
@@ -750,28 +760,25 @@ fn test_client_builder_error_handling() {
         invalid_user_agent.as_ptr()
     ));
 
-    // Now attempt to build the client - it should fail and return null
+    // Now attempt to build the client - it should fail and return 0
     let client_id = client_builder_build(client_builder_ptr);
 
-    // The build should have failed, so the client pointer must be null.
+    // The build should have failed, so the client id must be 0.
     assert!(
         client_id == 0,
         "Client build should fail with an invalid User-Agent, but it succeeded."
     );
 
-    // Check if we can retrieve the error message
+    // Check if we can retrieve the error message from the builder
     let mut error_len: u32 = 0;
-    let error_ptr = get_last_error_message(&mut error_len);
+    let error_ptr = client_builder_read_error_message(client_builder_ptr, &mut error_len);
 
     // We should have an error message
     assert!(
         !error_ptr.is_null(),
-        "get_last_error_message should return an error message, but it was null."
+        "client_builder_read_error_message should return an error message, but it was null."
     );
-    assert!(
-        error_len > 0,
-        "Error message should have a non-zero length."
-    );
+    assert!(error_len > 0, "Error message should have a non-zero length.");
 
     // Convert the error message to a string
     let error_str = unsafe {
@@ -797,4 +804,180 @@ fn test_client_builder_error_handling() {
         "Successfully tested error handling. Got expected error: {}",
         error_str
     );
+
+    // IMPORTANT: The caller must now free the builder if the build fails.
+    client_builder_free(client_builder_ptr);
+}
+
+#[test]
+fn test_isolated_client_builder_errors() {
+    // === Builder 1: Invalid Proxy URL ===
+    let builder1_ptr = client_builder_new();
+    assert!(!builder1_ptr.is_null());
+
+    // Set an invalid proxy URL, which should fail immediately and set the error.
+    let invalid_proxy = std::ffi::CString::new("!@#$%^&*").unwrap();
+    let success1 = client_builder_https_proxy(builder1_ptr, invalid_proxy.as_ptr());
+    assert!(
+        !success1,
+        "Setting an invalid proxy URL should return false."
+    );
+
+    // === Builder 2: Invalid User-Agent Header ===
+    let builder2_ptr = client_builder_new();
+    assert!(!builder2_ptr.is_null());
+
+    // Set an invalid User-Agent. This doesn't fail immediately,
+    // but causes the build to fail.
+    let invalid_user_agent = std::ffi::CString::new("My App \r\n Invalid").unwrap();
+    client_builder_user_agent(builder2_ptr, invalid_user_agent.as_ptr());
+
+    // Attempt to build the client, which should fail.
+    let client2_id = client_builder_build(builder2_ptr);
+    assert_eq!(
+        client2_id, 0,
+        "Client build should fail with an invalid User-Agent."
+    );
+
+    // === Verify Error Messages are Isolated ===
+
+    // -- Check Builder 1's error --
+    let mut error1_len: u32 = 0;
+    let error1_ptr = client_builder_read_error_message(builder1_ptr, &mut error1_len);
+    assert!(
+        !error1_ptr.is_null(),
+        "Builder 1 should have an error message."
+    );
+    let error1_str = unsafe {
+        let slice = std::slice::from_raw_parts(error1_ptr as *const u8, error1_len as usize);
+        std::str::from_utf8(slice).unwrap().to_string()
+    };
+    free_memory(error1_ptr);
+    assert!(
+        error1_str.contains("Invalid proxy URL"),
+        "Builder 1's error message is incorrect. Got: {}",
+        error1_str
+    );
+
+    // -- Check Builder 2's error --
+    let mut error2_len: u32 = 0;
+    let error2_ptr = client_builder_read_error_message(builder2_ptr, &mut error2_len);
+    assert!(
+        !error2_ptr.is_null(),
+        "Builder 2 should have an error message."
+    );
+    let error2_str = unsafe {
+        let slice = std::slice::from_raw_parts(error2_ptr as *const u8, error2_len as usize);
+        std::str::from_utf8(slice).unwrap().to_string()
+    };
+    free_memory(error2_ptr);
+    assert!(
+        error2_str.contains("Failed to build client"),
+        "Builder 2's error message is incorrect. Got: {}",
+        error2_str
+    );
+
+    // -- Final check: errors are different --
+    assert_ne!(
+        error1_str, error2_str,
+        "Error messages for two different builders should not be the same."
+    );
+
+    println!("Builder 1 error: {}", error1_str);
+    println!("Builder 2 error: {}", error2_str);
+
+    // === Cleanup ===
+    client_builder_free(builder1_ptr);
+    client_builder_free(builder2_ptr);
+}
+
+#[test]
+fn test_isolated_request_builder_errors() {
+    // Create a client to be used by the request builders
+    let client_builder_ptr = client_builder_new();
+    let client_id = client_builder_build(client_builder_ptr);
+    assert!(client_id != 0);
+
+    let url = std::ffi::CString::new("https://httpbin.org/post").unwrap();
+
+    // === Builder 1: Invalid JSON Body ===
+    let builder1_ptr = client_new_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
+    assert!(!builder1_ptr.is_null());
+
+    // Set a malformed JSON body
+    let invalid_json = std::ffi::CString::new(r#"{"key": "value""#).unwrap(); // Missing closing brace
+    let success1 = request_builder_json(builder1_ptr, invalid_json.as_ptr());
+    assert!(
+        !success1,
+        "Setting invalid JSON should return false."
+    );
+
+    // Attempting to send this builder should fail immediately and return 0
+    let request1_id = request_builder_send(builder1_ptr);
+    assert_eq!(request1_id, 0, "Sending a builder with a config error should fail.");
+
+    // === Builder 2: Invalid Header ===
+    let builder2_ptr = client_new_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
+    assert!(!builder2_ptr.is_null());
+
+    // Set an invalid header key
+    let invalid_header_key = std::ffi::CString::new("Bad Key\r\n").unwrap();
+    let header_value = std::ffi::CString::new("value").unwrap();
+    let success2 = request_builder_header(builder2_ptr, invalid_header_key.as_ptr(), header_value.as_ptr());
+    assert!(
+        !success2,
+        "Setting an invalid header should return false."
+    );
+    
+    // === Verify Error Messages are Isolated ===
+
+    // -- Check Builder 1's error --
+    let mut error1_len: u32 = 0;
+    let error1_ptr = request_builder_read_error_message(builder1_ptr, &mut error1_len);
+    assert!(
+        !error1_ptr.is_null(),
+        "Builder 1 should have an error message."
+    );
+    let error1_str = unsafe {
+        let slice = std::slice::from_raw_parts(error1_ptr as *const u8, error1_len as usize);
+        std::str::from_utf8(slice).unwrap().to_string()
+    };
+    free_memory(error1_ptr);
+    assert!(
+        error1_str.contains("Invalid JSON format"),
+        "Builder 1's error message is incorrect. Got: {}",
+        error1_str
+    );
+
+    // -- Check Builder 2's error --
+    let mut error2_len: u32 = 0;
+    let error2_ptr = request_builder_read_error_message(builder2_ptr, &mut error2_len);
+    assert!(
+        !error2_ptr.is_null(),
+        "Builder 2 should have an error message."
+    );
+    let error2_str = unsafe {
+        let slice = std::slice::from_raw_parts(error2_ptr as *const u8, error2_len as usize);
+        std::str::from_utf8(slice).unwrap().to_string()
+    };
+    free_memory(error2_ptr);
+    assert!(
+        error2_str.contains("Invalid header name"),
+        "Builder 2's error message is incorrect. Got: {}",
+        error2_str
+    );
+
+    // -- Final check: errors are different --
+    assert_ne!(
+        error1_str, error2_str,
+        "Error messages for two different request builders should not be the same."
+    );
+
+    println!("Request Builder 1 error: {}", error1_str);
+    println!("Request Builder 2 error: {}", error2_str);
+
+    // === Cleanup ===
+    request_builder_free(builder1_ptr);
+    request_builder_free(builder2_ptr);
+    client_close(client_id);
 }

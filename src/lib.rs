@@ -32,23 +32,6 @@ lazy_static::lazy_static! {
             .expect("Failed to create global Tokio runtime");
 }
 
-// Thread-local storage for the last error message
-thread_local! {
-    static LAST_ERROR: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
-}
-
-// Helper function to set the last error message
-fn set_last_error(error: String) {
-    LAST_ERROR.with(|cell| {
-        *cell.borrow_mut() = Some(error);
-    });
-}
-
-// Helper function to get and clear the last error message
-fn take_last_error() -> Option<String> {
-    LAST_ERROR.with(|cell| cell.borrow_mut().take())
-}
-
 // Helper function to create a new request ID
 fn request_builder_new_request_id() -> RequestId {
     let mut id = NEXT_REQUEST_ID.lock().unwrap();
@@ -210,6 +193,7 @@ pub extern "C" fn headers_add(
 // Wrapper for the reqwest ClientBuilder
 pub struct ClientBuilderWrapper {
     builder: ClientBuilder,
+    error_message: Option<String>,
 }
 
 // Create a new client builder
@@ -217,6 +201,7 @@ pub struct ClientBuilderWrapper {
 pub extern "C" fn client_builder_new() -> *mut ClientBuilderWrapper {
     Box::into_raw(Box::new(ClientBuilderWrapper {
         builder: Client::builder(),
+        error_message: None,
     }))
 }
 
@@ -343,19 +328,20 @@ pub extern "C" fn client_builder_min_tls_version(
 
 // Set HTTPS proxy for the client
 #[no_mangle]
-pub extern "C" fn client_builder_set_https_proxy(
+pub extern "C" fn client_builder_https_proxy(
     builder_ptr: *mut ClientBuilderWrapper,
     proxy_url: *const c_char,
 ) -> bool {
     if builder_ptr.is_null() || proxy_url.is_null() {
         return false;
     }
+    let builder_wrapper = unsafe { &mut *builder_ptr };
 
     let proxy_url_str = unsafe {
         match CStr::from_ptr(proxy_url).to_str() {
             Ok(s) => s,
             Err(_) => {
-                set_last_error("Invalid UTF-8 in proxy URL".to_string());
+                builder_wrapper.error_message = Some("Invalid UTF-8 in proxy URL".to_string());
                 return false;
             }
         }
@@ -365,7 +351,7 @@ pub extern "C" fn client_builder_set_https_proxy(
         Ok(p) => p,
         Err(e) => {
             // This can fail if the URL is invalid.
-            set_last_error(format!("Invalid proxy URL: {}", e));
+            builder_wrapper.error_message = Some(format!("Invalid proxy URL: {}", e));
             return false;
         }
     };
@@ -385,13 +371,16 @@ pub extern "C" fn client_builder_build(builder_ptr: *mut ClientBuilderWrapper) -
         return 0;
     }
 
-    let builder_wrapper = unsafe { Box::from_raw(builder_ptr) };
+    // Don't take ownership yet, just borrow mutably.
+    let builder_wrapper = unsafe { &mut *builder_ptr };
 
-    // Use the global runtime to build the client
-    let client_result = GLOBAL_RUNTIME.block_on(async { builder_wrapper.builder.build() });
+    // Take the internal builder for building.
+    // We need to replace it with a default one because `build()` consumes it.
+    let builder_to_build = std::mem::replace(&mut builder_wrapper.builder, Client::builder());
 
-    match client_result {
+    match builder_to_build.build() {
         Ok(client) => {
+            // On success, the caller is still responsible for freeing the builder.
             let client_wrapper = ClientWrapper(client);
             let client_id = NEXT_CLIENT_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
@@ -407,8 +396,9 @@ pub extern "C" fn client_builder_build(builder_ptr: *mut ClientBuilderWrapper) -
             client_id
         }
         Err(e) => {
-            // Store the error message for later retrieval
-            set_last_error(format!("Failed to build client: {}", e));
+            // On failure, store the error in the wrapper. The caller is responsible
+            // for freeing the builder.
+            builder_wrapper.error_message = Some(format!("Failed to build client: {}", e));
             0 // Return 0 to indicate failure
         }
     }
@@ -730,6 +720,7 @@ pub struct RequestBuilderWrapper {
     builder: Option<RequestBuilder>,
     client_id: ClientId,
     output_file_path: Option<String>,
+    error_message: Option<String>,
 }
 
 impl RequestBuilderWrapper {
@@ -738,10 +729,17 @@ impl RequestBuilderWrapper {
     where
         F: FnOnce(RequestBuilder) -> RequestBuilder,
     {
+        if self.error_message.is_some() {
+            // If there's already an error, don't try to modify the builder further.
+            return false;
+        }
         if let Some(builder) = self.builder.take() {
             self.builder = Some(f(builder));
             true
         } else {
+            // This case should not be hit if the API is used correctly,
+            // as the builder is only taken by send(). But as a safeguard:
+            self.error_message = Some("Request builder was already consumed.".to_string());
             false
         }
     }
@@ -783,6 +781,7 @@ pub extern "C" fn client_new_request_builder(
         builder: Some(request_builder),
         client_id,
         output_file_path: None,
+        error_message: None,
     }))
 }
 
@@ -839,17 +838,21 @@ pub extern "C" fn request_builder_body(
     if builder_ptr.is_null() {
         return false;
     }
+    let builder_wrapper = unsafe { &mut *builder_ptr };
 
     let body_str = if !body.is_null() {
         match unsafe { CStr::from_ptr(body).to_str() } {
             Ok(s) => s,
-            Err(_) => return false,
+            Err(_) => {
+                builder_wrapper.error_message = Some("Body contains invalid UTF-8".to_string());
+                return false;
+            }
         }
     } else {
         ""
     };
 
-    unsafe { &mut *builder_ptr }.with_builder(|b| b.body(body_str.to_string()))
+    builder_wrapper.with_builder(|b| b.body(body_str.to_string()))
 }
 
 // Set the output file path for the request, which will cause the response to be streamed to the file.
@@ -862,22 +865,26 @@ pub extern "C" fn request_builder_set_output_file(
         return false;
     }
 
-    let builder = unsafe { &mut *builder_ptr };
+    let builder_wrapper = unsafe { &mut *builder_ptr };
 
     if file_path.is_null() {
-        builder.output_file_path = None;
+        builder_wrapper.output_file_path = None;
         return true;
     }
 
     let file_path_str = match unsafe { CStr::from_ptr(file_path).to_str() } {
         Ok(s) => s,
-        Err(_) => return false,
+        Err(_) => {
+            builder_wrapper.error_message =
+                Some("File path contains invalid UTF-8".to_string());
+            return false;
+        }
     };
 
     if file_path_str.is_empty() {
-        builder.output_file_path = None;
+        builder_wrapper.output_file_path = None;
     } else {
-        builder.output_file_path = Some(file_path_str.to_string());
+        builder_wrapper.output_file_path = Some(file_path_str.to_string());
     }
 
     true
@@ -887,22 +894,35 @@ pub extern "C" fn request_builder_set_output_file(
 // If an output file path is set on the builder, the response will be streamed to that file.
 // Otherwise, it will be buffered in memory.
 #[no_mangle]
-pub extern "C" fn request_builder_send(builder_ptr: *mut RequestBuilderWrapper) -> RequestId {
+pub extern "C" fn request_builder_send(
+    builder_ptr: *mut RequestBuilderWrapper,
+) -> RequestId {
     if builder_ptr.is_null() {
         return 0;
     }
 
-    // Get the builder
-    let builder = unsafe { &mut *builder_ptr };
-    let client_id = builder.client_id;
-    let output_file_path = builder.output_file_path.clone();
+    // First, borrow mutably to check for pre-existing errors.
+    let builder_wrapper = unsafe { &mut *builder_ptr };
+    if builder_wrapper.error_message.is_some() {
+        // Do not consume the builder. The caller needs it to read the error.
+        return 0;
+    }
 
-    // Take the builder
-    let request_builder = if let Some(b) = builder.builder.take() {
+    // Now, attempt to take the internal builder.
+    // `take()` is equivalent to `std::mem::replace(&mut self.builder, None)`.
+    let request_builder = if let Some(b) = builder_wrapper.builder.take() {
         b
     } else {
+        // The builder was already consumed. This is a usage error.
+        // Set an error on the wrapper and return. Caller is responsible for freeing.
+        builder_wrapper.error_message = Some("Request builder was already consumed.".to_string());
         return 0;
     };
+
+    // The builder has been used to create the request, but the caller is still
+    // responsible for freeing the wrapper.
+    let client_id = builder_wrapper.client_id;
+    let output_file_path = builder_wrapper.output_file_path.clone();
 
     // Create a new request ID
     let request_id = request_builder_new_request_id();
@@ -945,30 +965,53 @@ pub extern "C" fn request_builder_header(
         return false;
     }
 
+    let builder_wrapper = unsafe { &mut *builder_ptr };
+
     let (key_str, value_str) = unsafe {
         let key_cstr = CStr::from_ptr(key);
         let value_cstr = CStr::from_ptr(value);
         (
-            key_cstr.to_str().unwrap_or_default(),
-            value_cstr.to_str().unwrap_or_default(),
+            match key_cstr.to_str() {
+                Ok(s) => s,
+                Err(_) => {
+                    builder_wrapper.error_message =
+                        Some("Header key contains invalid UTF-8".to_string());
+                    return false;
+                }
+            },
+            match value_cstr.to_str() {
+                Ok(s) => s,
+                Err(_) => {
+                    builder_wrapper.error_message =
+                        Some("Header value contains invalid UTF-8".to_string());
+                    return false;
+                }
+            },
         )
     };
 
     if key_str.is_empty() {
+        builder_wrapper.error_message = Some("Header key cannot be empty.".to_string());
         return false;
     }
 
     let header_name = match HeaderName::from_bytes(key_str.as_bytes()) {
         Ok(name) => name,
-        Err(_) => return false,
+        Err(e) => {
+            builder_wrapper.error_message = Some(format!("Invalid header name: {}", e));
+            return false;
+        }
     };
 
     let header_value = match HeaderValue::from_str(value_str) {
         Ok(val) => val,
-        Err(_) => return false,
+        Err(e) => {
+            builder_wrapper.error_message = Some(format!("Invalid header value: {}", e));
+            return false;
+        }
     };
 
-    unsafe { &mut *builder_ptr }.with_builder(|b| b.header(header_name, header_value))
+    builder_wrapper.with_builder(|b| b.header(header_name, header_value))
 }
 
 // Set query parameters
@@ -982,16 +1025,33 @@ pub extern "C" fn request_builder_query(
         return false;
     }
 
+    let builder_wrapper = unsafe { &mut *builder_ptr };
+
     let (key_str, value_str) = unsafe {
         let key_cstr = CStr::from_ptr(key);
         let value_cstr = CStr::from_ptr(value);
         (
-            key_cstr.to_str().unwrap_or_default(),
-            value_cstr.to_str().unwrap_or_default(),
+            match key_cstr.to_str() {
+                Ok(s) => s,
+                Err(_) => {
+                    builder_wrapper.error_message =
+                        Some("Query key contains invalid UTF-8".to_string());
+                    return false;
+                }
+            },
+            match value_cstr.to_str() {
+                Ok(s) => s,
+                Err(_) => {
+                    builder_wrapper.error_message =
+                        Some("Query value contains invalid UTF-8".to_string());
+                    return false;
+                }
+            },
         )
     };
 
     if key_str.is_empty() {
+        builder_wrapper.error_message = Some("Query key cannot be empty.".to_string());
         return false;
     }
 
@@ -1013,23 +1073,33 @@ pub extern "C" fn request_builder_basic_auth(
         return false;
     }
 
+    let builder_wrapper = unsafe { &mut *builder_ptr };
+
     let username_str = unsafe {
         match CStr::from_ptr(username).to_str() {
             Ok(s) => s,
-            Err(_) => return false,
+            Err(_) => {
+                builder_wrapper.error_message =
+                    Some("Username contains invalid UTF-8".to_string());
+                return false;
+            }
         }
     };
 
     let password_str = if !password.is_null() {
         match unsafe { CStr::from_ptr(password).to_str() } {
             Ok(s) => Some(s),
-            Err(_) => return false,
+            Err(_) => {
+                builder_wrapper.error_message =
+                    Some("Password contains invalid UTF-8".to_string());
+                return false;
+            }
         }
     } else {
         None
     };
 
-    unsafe { &mut *builder_ptr }.with_builder(|b| {
+    builder_wrapper.with_builder(|b| {
         if let Some(pwd) = password_str {
             b.basic_auth(username_str, Some(pwd))
         } else {
@@ -1048,14 +1118,19 @@ pub extern "C" fn request_builder_bearer_auth(
         return false;
     }
 
+    let builder_wrapper = unsafe { &mut *builder_ptr };
+
     let token_str = unsafe {
         match CStr::from_ptr(token).to_str() {
             Ok(s) => s,
-            Err(_) => return false,
+            Err(_) => {
+                builder_wrapper.error_message = Some("Token contains invalid UTF-8".to_string());
+                return false;
+            }
         }
     };
 
-    unsafe { &mut *builder_ptr }.with_builder(|b| b.bearer_auth(token_str))
+    builder_wrapper.with_builder(|b| b.bearer_auth(token_str))
 }
 
 // Set JSON body (convenience method that sets content-type header too)
@@ -1068,20 +1143,29 @@ pub extern "C" fn request_builder_json(
         return false;
     }
 
+    let builder_wrapper = unsafe { &mut *builder_ptr };
+
     let json_str = unsafe {
         match CStr::from_ptr(json).to_str() {
             Ok(s) => s,
-            Err(_) => return false,
+            Err(_) => {
+                builder_wrapper.error_message =
+                    Some("JSON string contains invalid UTF-8".to_string());
+                return false;
+            }
         }
     };
 
     // Create a serde_json::Value from the JSON string
     let json_value = match serde_json::from_str::<serde_json::Value>(json_str) {
         Ok(v) => v,
-        Err(_) => return false,
+        Err(e) => {
+            builder_wrapper.error_message = Some(format!("Invalid JSON format: {}", e));
+            return false;
+        }
     };
 
-    unsafe { &mut *builder_ptr }.with_builder(|b| b.json(&json_value))
+    builder_wrapper.with_builder(|b| b.json(&json_value))
 }
 
 // Set a form parameter
@@ -1095,34 +1179,102 @@ pub extern "C" fn request_builder_form(
         return false;
     }
 
+    let builder_wrapper = unsafe { &mut *builder_ptr };
+
     let (key_str, value_str) = unsafe {
         let key_cstr = CStr::from_ptr(key);
         let value_cstr = CStr::from_ptr(value);
         (
-            key_cstr.to_str().unwrap_or_default(),
-            value_cstr.to_str().unwrap_or_default(),
+            match key_cstr.to_str() {
+                Ok(s) => s,
+                Err(_) => {
+                    builder_wrapper.error_message =
+                        Some("Form key contains invalid UTF-8".to_string());
+                    return false;
+                }
+            },
+            match value_cstr.to_str() {
+                Ok(s) => s,
+                Err(_) => {
+                    builder_wrapper.error_message =
+                        Some("Form value contains invalid UTF-8".to_string());
+                    return false;
+                }
+            },
         )
     };
 
     if key_str.is_empty() {
+        builder_wrapper.error_message = Some("Form key cannot be empty.".to_string());
         return false;
     }
 
-    unsafe { &mut *builder_ptr }.with_builder(|b| {
+    builder_wrapper.with_builder(|b| {
         // Create a simple form param
         let form = [(key_str, value_str)];
         b.form(&form)
     })
 }
 
-// Get the last error message as a C string
+// Get the last error message from a RequestBuilder as a C string.
+// This function consumes the error message string, so the builder's
+// error state is cleared after the read.
 #[no_mangle]
-pub extern "C" fn get_last_error_message(num_bytes: *mut u32) -> *mut c_char {
-    if num_bytes.is_null() {
+pub extern "C" fn request_builder_read_error_message(
+    builder_ptr: *mut RequestBuilderWrapper,
+    num_bytes: *mut u32,
+) -> *mut c_char {
+    if builder_ptr.is_null() || num_bytes.is_null() {
+        if !num_bytes.is_null() {
+            unsafe { *num_bytes = 0 };
+        }
         return ptr::null_mut();
     }
 
-    if let Some(error_message) = take_last_error() {
+    let builder_wrapper = unsafe { &mut *builder_ptr };
+
+    if let Some(error_message) = builder_wrapper.error_message.take() {
+        let error_len = error_message.len();
+        unsafe { *num_bytes = error_len as u32 };
+
+        // Allocate memory for the string + null terminator
+        let c_str_ptr = unsafe { libc::malloc(error_len + 1) as *mut c_char };
+        if c_str_ptr.is_null() {
+            unsafe { *num_bytes = 0 };
+            return ptr::null_mut();
+        }
+
+        // Copy the string and add null terminator
+        unsafe {
+            std::ptr::copy_nonoverlapping(error_message.as_ptr(), c_str_ptr as *mut u8, error_len);
+            *(c_str_ptr.add(error_len)) = 0;
+        }
+
+        return c_str_ptr;
+    } else {
+        unsafe { *num_bytes = 0 };
+        ptr::null_mut() // Return null if no error message
+    }
+}
+
+// Get the last error message from a ClientBuilder as a C string.
+// This function consumes the error message string, so the builder's
+// error state is cleared after the read.
+#[no_mangle]
+pub extern "C" fn client_builder_read_error_message(
+    builder_ptr: *mut ClientBuilderWrapper,
+    num_bytes: *mut u32,
+) -> *mut c_char {
+    if builder_ptr.is_null() || num_bytes.is_null() {
+        if !num_bytes.is_null() {
+            unsafe { *num_bytes = 0 };
+        }
+        return ptr::null_mut();
+    }
+
+    let builder_wrapper = unsafe { &mut *builder_ptr };
+
+    if let Some(error_message) = builder_wrapper.error_message.take() {
         let error_len = error_message.len();
         unsafe { *num_bytes = error_len as u32 };
 
@@ -1156,11 +1308,14 @@ pub extern "C" fn client_builder_user_agent(
         return false;
     }
 
+    let builder_wrapper = unsafe { &mut *builder_ptr };
+
     let user_agent_str = unsafe {
         match CStr::from_ptr(user_agent).to_str() {
             Ok(s) => s,
             Err(_) => {
-                set_last_error("User agent contains invalid UTF-8".to_string());
+                builder_wrapper.error_message =
+                    Some("User agent contains invalid UTF-8".to_string());
                 return false;
             }
         }
