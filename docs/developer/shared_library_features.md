@@ -40,7 +40,9 @@ A flexible builder pattern is used to construct HTTP requests.
   - Override the client's timeout for a specific request.
   - Add URL query parameters.
 - **Request Lifecycle**:
-  - Free a `RequestBuilder` if it's no longer needed before sending.
+  - The caller is always responsible for freeing a `RequestBuilder` with `request_builder_free()` after it has been used.
+- **Error Handling**:
+  - If a configuration function fails, an error message is stored in the builder. This can be read with `request_builder_read_error_message()`.
 
 ## 4. Authentication
 
@@ -69,8 +71,8 @@ Requests are sent asynchronously, and responses can be inspected in detail.
   - Get the HTTP status code (e.g., 200, 404).
   - Get response headers.
   - Get the response body as a byte buffer.
-  - Get the error message if the request failed.
-  - Check if a request resulted in an error.
+  - Get the transport error message if the request failed at the network level (e.g., timeout, DNS failure).
+  - Check if a request resulted in a transport error. An HTTP status code like 404 or 500 is **not** a transport error.
 - **Response Body Streaming**:
   - Configure a request to stream its response body directly to a specified output file. This is useful for large downloads that might not fit into memory.
 
@@ -89,8 +91,43 @@ The status of in-flight requests can be monitored.
 - **Resource Cleanup**:
   - Clean up the tracking resources associated with a request once it is no longer needed.
 
-## 8. Memory Management
+## 8. Error Handling
 
-The library provides functions to manage memory allocated for data passed across the FFI boundary.
+The library distinguishes between two primary error types to help developers diagnose issues accurately. The application logic is responsible for handling HTTP status codes.
 
-- **String Deallocation**: A dedicated function is provided to free the memory of strings returned by the library (e.g., response bodies, headers). This is crucial to prevent memory leaks in the calling application.
+### 8.1. Configuration Errors
+
+Occur *before* a request is sent, during the setup of a `ClientBuilder` or `RequestBuilder`.
+
+- **Examples:** Providing an invalid proxy URL, a malformed JSON body, or an invalid header value.
+- **Detection:** These errors are stored within the builder instance itself. They can be read using `client_builder_read_error_message()` or `request_builder_read_error_message()`. The builder should be checked for an error before it is used.
+
+### 8.2. Transport Errors
+
+Occur *during* the execution of a request and are related to network or protocol-level issues.
+
+- **Examples:** Network failures (DNS resolution, timeouts), or problems with the HTTP response stream.
+- **Detection:** These errors are associated with a `RequestId`. They can be checked for with `request_has_transport_error()` and read with `request_read_transport_error()`.
+
+### 8.3. HTTP Status Codes (Application-Handled)
+
+HTTP status codes like `404 Not Found` or `500 Internal Server Error` are **not** considered errors by the library's error handling system.
+
+- **Successful Transaction:** Receiving a status code means the library successfully communicated with the server and received a valid response.
+- **Application Responsibility:** It is the responsibility of the calling application to read the status code using `request_read_response_status()` and interpret its meaning. The library's job is to deliver the server's response; the application's job is to decide what to do with it.
+
+## 9. Memory Management
+
+The library employs a strict and consistent model for resource ownership to ensure safe and predictable behavior across the FFI boundary.
+
+### 9.1. Object Lifecycle: The "Creator Frees" Model
+
+The library follows a simple, absolute rule for all major objects (`ClientBuilder`, `RequestBuilder`, `HeaderMap`): **If you create it, you must free it.**
+
+- **Rule:** Any object created with a `_new()` function *must* be cleaned up by calling its corresponding `_free()` function (e.g., `client_builder_free()`, `request_builder_free()`).
+- **Consistency:** This rule applies universally, regardless of whether an operation succeeds or fails. Functions like `client_builder_build()` or `request_builder_send()` **never** free the builder for you.
+- **Responsibility:** The calling application is always responsible for managing the lifecycle of these objects to prevent memory leaks.
+
+### 9.2. String Deallocation
+
+For strings returned by the library (e.g., response bodies, headers, error messages), a dedicated function, `free_memory()`, is provided. The caller must use this function to deallocate these strings to prevent memory leaks.
