@@ -1,9 +1,9 @@
 use libc::c_char;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
-    Client, ClientBuilder, StatusCode, RequestBuilder,
-    tls,
+    tls, Client, ClientBuilder, RequestBuilder, StatusCode,
 };
+use serde_json;
 use std::{
     collections::{HashMap, HashSet},
     ffi::{c_void, CStr},
@@ -11,7 +11,6 @@ use std::{
     sync::{Arc, Mutex, RwLock},
     time::Duration,
 };
-use serde_json;
 
 mod async_support;
 
@@ -47,9 +46,7 @@ fn set_last_error(error: String) {
 
 // Helper function to get and clear the last error message
 fn take_last_error() -> Option<String> {
-    LAST_ERROR.with(|cell| {
-        cell.borrow_mut().take()
-    })
+    LAST_ERROR.with(|cell| cell.borrow_mut().take())
 }
 
 // Helper function to create a new request ID
@@ -63,7 +60,10 @@ fn request_builder_new_request_id() -> RequestId {
 // Helper function to register a request with a client
 fn client_register_request(client_id: ClientId, request_id: RequestId) {
     let mut client_requests = CLIENT_REQUESTS.lock().unwrap();
-    client_requests.entry(client_id).or_insert_with(HashSet::new).insert(request_id);
+    client_requests
+        .entry(client_id)
+        .or_insert_with(HashSet::new)
+        .insert(request_id);
 }
 
 // Helper function to mark all requests for a client as cancelled
@@ -72,7 +72,7 @@ fn client_cancel_requests(client_id: ClientId) {
         let mut client_requests = CLIENT_REQUESTS.lock().unwrap();
         client_requests.remove(&client_id).unwrap_or_default()
     };
-    
+
     let tracker = REQUEST_TRACKER.lock().unwrap();
     for request_id in requests_to_cancel {
         if let Some(progress_info) = tracker.get(&request_id) {
@@ -203,9 +203,7 @@ pub extern "C" fn headers_add(
         Err(_) => return false,
     };
 
-    unsafe { &mut *map_ptr }
-        .0
-        .append(header_name, header_value);
+    unsafe { &mut *map_ptr }.0.append(header_name, header_value);
     true
 }
 
@@ -269,8 +267,7 @@ pub extern "C" fn client_builder_timeout_ms(
         // an unsafe block is required to dereference the raw pointer
         std::mem::take(&mut (*builder_ptr).builder)
     };
-    unsafe { &mut *builder_ptr }.builder = builder
-        .timeout(Duration::from_millis(timeout_ms));
+    unsafe { &mut *builder_ptr }.builder = builder.timeout(Duration::from_millis(timeout_ms));
     true
 }
 
@@ -287,8 +284,8 @@ pub extern "C" fn client_builder_connect_timeout_ms(
         // an unsafe block is required to dereference the raw pointer
         std::mem::take(&mut (*builder_ptr).builder)
     };
-    unsafe { &mut *builder_ptr }.builder = builder
-        .connect_timeout(Duration::from_millis(connect_timeout_ms));
+    unsafe { &mut *builder_ptr }.builder =
+        builder.connect_timeout(Duration::from_millis(connect_timeout_ms));
     true
 }
 
@@ -338,14 +335,11 @@ pub extern "C" fn client_builder_min_tls_version(
         Some(v) => v,
         None => return false,
     };
-    
-    let builder = unsafe {
-        std::mem::take(&mut (*builder_ptr).builder)
-    };
+
+    let builder = unsafe { std::mem::take(&mut (*builder_ptr).builder) };
     unsafe { &mut *builder_ptr }.builder = builder.min_tls_version(tls_version);
     true
 }
-
 
 // Set HTTPS proxy for the client
 #[no_mangle]
@@ -384,12 +378,9 @@ pub extern "C" fn client_builder_set_https_proxy(
     true
 }
 
-
 // Build the client from the builder
 #[no_mangle]
-pub extern "C" fn client_builder_build(
-    builder_ptr: *mut ClientBuilderWrapper,
-) -> ClientId {
+pub extern "C" fn client_builder_build(builder_ptr: *mut ClientBuilderWrapper) -> ClientId {
     if builder_ptr.is_null() {
         return 0;
     }
@@ -397,23 +388,24 @@ pub extern "C" fn client_builder_build(
     let builder_wrapper = unsafe { Box::from_raw(builder_ptr) };
 
     // Use the global runtime to build the client
-    let client_result = GLOBAL_RUNTIME.block_on(async {
-        builder_wrapper.builder.build()
-    });
+    let client_result = GLOBAL_RUNTIME.block_on(async { builder_wrapper.builder.build() });
 
     match client_result {
         Ok(client) => {
             let client_wrapper = ClientWrapper(client);
             let client_id = NEXT_CLIENT_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            
+
             let mut clients = CLIENTS.lock().unwrap();
             clients.insert(client_id, client_wrapper);
 
             // Initialize an empty set of request IDs for this client
-            CLIENT_REQUESTS.lock().unwrap().insert(client_id, HashSet::new());
-            
+            CLIENT_REQUESTS
+                .lock()
+                .unwrap()
+                .insert(client_id, HashSet::new());
+
             client_id
-        },
+        }
         Err(e) => {
             // Store the error message for later retrieval
             set_last_error(format!("Failed to build client: {}", e));
@@ -428,20 +420,20 @@ pub extern "C" fn client_close(client_id: ClientId) {
     if client_id == 0 {
         return;
     }
-    
+
     // Cancel all pending requests for this client
     client_cancel_requests(client_id);
-    
+
     // Wait for any pending operations to complete
     GLOBAL_RUNTIME.block_on(async {
         // Allow some time for cancellation to take effect
         tokio::time::sleep(Duration::from_millis(100)).await;
     });
-    
+
     // Remove and drop the client
     let mut clients = CLIENTS.lock().unwrap();
     clients.remove(&client_id);
-    
+
     // Yield to ensure proper cleanup
     GLOBAL_RUNTIME.block_on(async {
         tokio::task::yield_now().await;
@@ -556,10 +548,10 @@ pub extern "C" fn request_read_response_body(
     if num_bytes.is_null() {
         return ptr::null_mut();
     }
-    
+
     // Get the response info directly from the tracker
     let tracker = REQUEST_TRACKER.lock().unwrap();
-    
+
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
         if let Some(ref response) = progress.final_response {
@@ -571,44 +563,44 @@ pub extern "C" fn request_read_response_body(
                     return ptr::null_mut();
                 }
             };
-            
+
             // Calculate size including null terminator
             let body_len = body.len();
             unsafe { *num_bytes = body_len as u32 };
-            
+
             // Allocate memory for the string + null terminator
             let c_str_ptr = unsafe { libc::malloc(body_len + 1) as *mut c_char };
             if c_str_ptr.is_null() {
                 return ptr::null_mut();
             }
-            
+
             // Copy the bytes and add null terminator
             unsafe {
                 std::ptr::copy_nonoverlapping(body.as_ptr(), c_str_ptr as *mut u8, body_len);
                 *(c_str_ptr.add(body_len)) = 0;
             }
-            
+
             return c_str_ptr;
         }
     }
-    
+
     unsafe { *num_bytes = 0 };
     ptr::null_mut() // Return null if request not found or no response yet
 }
 
 // Get the error message as a C string directly from a request ID
 #[no_mangle]
-pub extern "C" fn request_read_response_error(
+pub extern "C" fn request_read_transport_error(
     request_id: RequestId,
     num_bytes: *mut u32,
 ) -> *mut c_char {
     if num_bytes.is_null() {
         return ptr::null_mut();
     }
-    
+
     // Get the response info directly from the tracker
     let tracker = REQUEST_TRACKER.lock().unwrap();
-    
+
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
         if let Some(ref response) = progress.final_response {
@@ -620,27 +612,27 @@ pub extern "C" fn request_read_response_error(
                     return ptr::null_mut();
                 }
             };
-            
+
             // Calculate size including null terminator
             let str_len = error_str.len();
             unsafe { *num_bytes = str_len as u32 };
-            
+
             // Allocate memory for the string + null terminator
             let c_str_ptr = unsafe { libc::malloc(str_len + 1) as *mut c_char };
             if c_str_ptr.is_null() {
                 return ptr::null_mut();
             }
-            
+
             // Copy the string and add null terminator
             unsafe {
                 std::ptr::copy_nonoverlapping(error_str.as_ptr(), c_str_ptr as *mut u8, str_len);
                 *(c_str_ptr.add(str_len)) = 0;
             }
-            
+
             return c_str_ptr;
         }
     }
-    
+
     unsafe { *num_bytes = 0 };
     ptr::null_mut() // Return null if request not found or no response yet
 }
@@ -665,7 +657,7 @@ pub extern "C" fn request_cleanup(request_id: RequestId) {
     // Remove the request from the tracker
     let mut tracker = REQUEST_TRACKER.lock().unwrap();
     tracker.remove(&request_id);
-    
+
     // Remove the request from any client that might have it
     let mut client_requests = CLIENT_REQUESTS.lock().unwrap();
     for (_, requests) in client_requests.iter_mut() {
@@ -680,7 +672,9 @@ pub extern "C" fn free_memory(s: *mut c_char) {
     if s.is_null() {
         return;
     }
-    unsafe { libc::free(s as *mut c_void); };
+    unsafe {
+        libc::free(s as *mut c_void);
+    };
 }
 
 // Get the status code directly from a request ID
@@ -688,14 +682,14 @@ pub extern "C" fn free_memory(s: *mut c_char) {
 pub extern "C" fn request_read_response_status(request_id: RequestId) -> u16 {
     // Get the response info
     let tracker = REQUEST_TRACKER.lock().unwrap();
-    
+
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
         if let Some(ref response) = progress.final_response {
             return response.status.as_u16();
         }
     }
-    
+
     0 // Return 0 if request not found or no response yet
 }
 
@@ -704,30 +698,30 @@ pub extern "C" fn request_read_response_status(request_id: RequestId) -> u16 {
 pub extern "C" fn request_read_response_headers(request_id: RequestId) -> *mut HeaderMapWrapper {
     // Get the response info
     let tracker = REQUEST_TRACKER.lock().unwrap();
-    
+
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
         if let Some(ref response) = progress.final_response {
             return Box::into_raw(Box::new(HeaderMapWrapper(response.headers.clone())));
         }
     }
-    
+
     ptr::null_mut() // Return null if request not found or no response yet
 }
 
-// Check if a request has an error
+// Check if a request has an error (which can then be read with request_read_transport_error)
 #[no_mangle]
-pub extern "C" fn request_has_response_error(request_id: RequestId) -> bool {
+pub extern "C" fn request_has_transport_error(request_id: RequestId) -> bool {
     // Get the response info
     let tracker = REQUEST_TRACKER.lock().unwrap();
-    
+
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
         if let Some(ref response) = progress.final_response {
             return response.body.is_err();
         }
     }
-    
+
     false // Return false if request not found or no response yet
 }
 
@@ -771,7 +765,7 @@ pub extern "C" fn client_new_request_builder(
     } else {
         return ptr::null_mut();
     };
-    
+
     let url_str = match unsafe { CStr::from_ptr(url).to_str() } {
         Ok(s) => s,
         Err(_) => return ptr::null_mut(),
@@ -784,7 +778,7 @@ pub extern "C" fn client_new_request_builder(
     };
 
     let request_builder = client.0.request(http_method, url_str);
-    
+
     Box::into_raw(Box::new(RequestBuilderWrapper {
         builder: Some(request_builder),
         client_id,
@@ -796,7 +790,9 @@ pub extern "C" fn client_new_request_builder(
 #[no_mangle]
 pub extern "C" fn request_builder_free(builder_ptr: *mut RequestBuilderWrapper) {
     if !builder_ptr.is_null() {
-        unsafe { let _ = Box::from_raw(builder_ptr); }
+        unsafe {
+            let _ = Box::from_raw(builder_ptr);
+        }
     }
 }
 
@@ -809,7 +805,7 @@ pub extern "C" fn request_builder_timeout_ms(
     if builder_ptr.is_null() {
         return false;
     }
-    
+
     let builder = unsafe { &mut *builder_ptr };
     builder.with_builder(|b| b.timeout(Duration::from_millis(timeout_ms)))
 }
@@ -823,13 +819,13 @@ pub extern "C" fn request_builder_headers(
     if builder_ptr.is_null() {
         return false;
     }
-    
+
     let headers = if headers_ptr.is_null() {
         HeaderMap::new()
     } else {
         unsafe { (*headers_ptr).0.clone() }
     };
-    
+
     let builder = unsafe { &mut *builder_ptr };
     builder.with_builder(|b| b.headers(headers))
 }
@@ -843,7 +839,7 @@ pub extern "C" fn request_builder_body(
     if builder_ptr.is_null() {
         return false;
     }
-    
+
     let body_str = if !body.is_null() {
         match unsafe { CStr::from_ptr(body).to_str() } {
             Ok(s) => s,
@@ -852,7 +848,7 @@ pub extern "C" fn request_builder_body(
     } else {
         ""
     };
-    
+
     unsafe { &mut *builder_ptr }.with_builder(|b| b.body(body_str.to_string()))
 }
 
@@ -891,9 +887,7 @@ pub extern "C" fn request_builder_set_output_file(
 // If an output file path is set on the builder, the response will be streamed to that file.
 // Otherwise, it will be buffered in memory.
 #[no_mangle]
-pub extern "C" fn request_builder_send(
-    builder_ptr: *mut RequestBuilderWrapper,
-) -> RequestId {
+pub extern "C" fn request_builder_send(builder_ptr: *mut RequestBuilderWrapper) -> RequestId {
     if builder_ptr.is_null() {
         return 0;
     }
@@ -1127,24 +1121,24 @@ pub extern "C" fn get_last_error_message(num_bytes: *mut u32) -> *mut c_char {
     if num_bytes.is_null() {
         return ptr::null_mut();
     }
-    
+
     if let Some(error_message) = take_last_error() {
         let error_len = error_message.len();
         unsafe { *num_bytes = error_len as u32 };
-        
+
         // Allocate memory for the string + null terminator
         let c_str_ptr = unsafe { libc::malloc(error_len + 1) as *mut c_char };
         if c_str_ptr.is_null() {
             unsafe { *num_bytes = 0 };
             return ptr::null_mut();
         }
-        
+
         // Copy the string and add null terminator
         unsafe {
             std::ptr::copy_nonoverlapping(error_message.as_ptr(), c_str_ptr as *mut u8, error_len);
             *(c_str_ptr.add(error_len)) = 0;
         }
-        
+
         return c_str_ptr;
     } else {
         unsafe { *num_bytes = 0 };
@@ -1171,10 +1165,8 @@ pub extern "C" fn client_builder_user_agent(
             }
         }
     };
-    
-    let builder = unsafe {
-        std::mem::take(&mut (*builder_ptr).builder)
-    };
+
+    let builder = unsafe { std::mem::take(&mut (*builder_ptr).builder) };
     // This can fail if the user_agent string is not a valid header value.
     // The error is stored inside the builder and will be returned by `build()`.
     unsafe { &mut *builder_ptr }.builder = builder.user_agent(user_agent_str);

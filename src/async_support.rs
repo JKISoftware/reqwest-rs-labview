@@ -94,7 +94,7 @@ pub(crate) async fn process_request(
                         if progress_info.read().unwrap().status == RequestStatus::Cancelled {
                             return;
                         }
-                        
+
                         if let Some(f) = &mut file {
                             if let Err(e) = std::io::Write::write_all(f, &chunk) {
                                 let mut progress = progress_info.write().unwrap();
@@ -150,7 +150,7 @@ pub(crate) async fn process_request(
             if progress_info.read().unwrap().status == RequestStatus::Cancelled {
                 return;
             }
-            
+
             let mut progress = progress_info.write().unwrap();
             progress.status = RequestStatus::Error;
             let response = Response {
@@ -161,4 +161,4 @@ pub(crate) async fn process_request(
             progress.final_response = Some(response);
         }
     }
-} 
+}
