@@ -97,13 +97,13 @@ pub struct HeaderMapWrapper(HeaderMap);
 pub struct ClientWrapper(Client);
 
 // Create a new header map
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn headers_create() -> *mut HeaderMapWrapper {
     Box::into_raw(Box::new(HeaderMapWrapper(HeaderMap::new())))
 }
 
 // Destroy a header map
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn headers_destroy(map_ptr: *mut HeaderMapWrapper) {
     if map_ptr.is_null() {
         return;
@@ -114,7 +114,7 @@ pub extern "C" fn headers_destroy(map_ptr: *mut HeaderMapWrapper) {
 }
 
 // Get all headers as a multi-line string with "key: value" format
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn headers_get_all(
     map_ptr: *mut HeaderMapWrapper,
     num_bytes: *mut u32,
@@ -153,7 +153,7 @@ pub extern "C" fn headers_get_all(
 }
 
 // Add a header to the map
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn headers_add(
     map_ptr: *mut HeaderMapWrapper,
     key: *const c_char,
@@ -197,7 +197,7 @@ pub struct ClientBuilderWrapper {
 }
 
 // Create a new client builder
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn client_builder_create() -> *mut ClientBuilderWrapper {
     Box::into_raw(Box::new(ClientBuilderWrapper {
         builder: Client::builder(),
@@ -206,7 +206,7 @@ pub extern "C" fn client_builder_create() -> *mut ClientBuilderWrapper {
 }
 
 // Destroy a client builder if it's not used
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn client_builder_destroy(builder_ptr: *mut ClientBuilderWrapper) {
     if builder_ptr.is_null() {
         return;
@@ -217,7 +217,7 @@ pub extern "C" fn client_builder_destroy(builder_ptr: *mut ClientBuilderWrapper)
 }
 
 // Set default headers for the client
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn client_builder_default_headers(
     builder_ptr: *mut ClientBuilderWrapper,
     headers_ptr: *mut HeaderMapWrapper,
@@ -240,7 +240,7 @@ pub extern "C" fn client_builder_default_headers(
 }
 
 // Set timeout for the client
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn client_builder_timeout_ms(
     builder_ptr: *mut ClientBuilderWrapper,
     timeout_ms: u64,
@@ -257,7 +257,7 @@ pub extern "C" fn client_builder_timeout_ms(
 }
 
 // Set connect_timeout for the client
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn client_builder_connect_timeout_ms(
     builder_ptr: *mut ClientBuilderWrapper,
     connect_timeout_ms: u64,
@@ -275,7 +275,7 @@ pub extern "C" fn client_builder_connect_timeout_ms(
 }
 
 // Set whether to accept invalid certificates
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn client_builder_danger_accept_invalid_certs(
     builder_ptr: *mut ClientBuilderWrapper,
     accept: bool,
@@ -307,7 +307,7 @@ fn convert_tls_version(version: u8) -> Option<tls::Version> {
 }
 
 // Set the minimum TLS version
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn client_builder_min_tls_version(
     builder_ptr: *mut ClientBuilderWrapper,
     version: u8,
@@ -327,7 +327,7 @@ pub extern "C" fn client_builder_min_tls_version(
 }
 
 // Set HTTPS proxy for the client
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn client_builder_https_proxy(
     builder_ptr: *mut ClientBuilderWrapper,
     proxy_url: *const c_char,
@@ -365,7 +365,7 @@ pub extern "C" fn client_builder_https_proxy(
 }
 
 // Build the client from the builder
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn client_builder_create_client_and_start(builder_ptr: *mut ClientBuilderWrapper) -> ClientId {
     if builder_ptr.is_null() {
         return 0;
@@ -405,7 +405,7 @@ pub extern "C" fn client_builder_create_client_and_start(builder_ptr: *mut Clien
 }
 
 // Destroy a reqwest client and destroy the memory
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn client_destroy(client_id: ClientId) {
     if client_id == 0 {
         return;
@@ -467,7 +467,7 @@ fn convert_method(method: u8) -> Option<reqwest::Method> {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_is_complete(request_id: RequestId) -> bool {
     let tracker = REQUEST_TRACKER.lock().unwrap();
 
@@ -482,7 +482,7 @@ pub extern "C" fn request_is_complete(request_id: RequestId) -> bool {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_read_progress(request_id: RequestId) -> i32 {
     let tracker = REQUEST_TRACKER.lock().unwrap();
 
@@ -505,7 +505,7 @@ pub extern "C" fn request_read_progress(request_id: RequestId) -> i32 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_read_total_bytes(request_id: RequestId) -> u64 {
     let tracker = REQUEST_TRACKER.lock().unwrap();
 
@@ -517,7 +517,7 @@ pub extern "C" fn request_read_total_bytes(request_id: RequestId) -> u64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_read_received_bytes(request_id: RequestId) -> u64 {
     let tracker = REQUEST_TRACKER.lock().unwrap();
 
@@ -530,7 +530,7 @@ pub extern "C" fn request_read_received_bytes(request_id: RequestId) -> u64 {
 }
 
 // Get the response body as a C string directly from a request ID
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_read_response_body(
     request_id: RequestId,
     num_bytes: *mut u32,
@@ -579,7 +579,7 @@ pub extern "C" fn request_read_response_body(
 }
 
 // Get the error message as a C string directly from a request ID
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_read_transport_error(
     request_id: RequestId,
     num_bytes: *mut u32,
@@ -627,7 +627,7 @@ pub extern "C" fn request_read_transport_error(
     ptr::null_mut() // Return null if request not found or no response yet
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_cancel(request_id: RequestId) -> bool {
     let tracker = REQUEST_TRACKER.lock().unwrap();
 
@@ -642,7 +642,7 @@ pub extern "C" fn request_cancel(request_id: RequestId) -> bool {
     false
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_destroy(request_id: RequestId) {
     // Remove the request from the tracker
     let mut tracker = REQUEST_TRACKER.lock().unwrap();
@@ -657,7 +657,7 @@ pub extern "C" fn request_destroy(request_id: RequestId) {
 
 // exported function that destroys the memory allocated for a string
 // this *must* be called for every string returned from a function in this library
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn string_destroy(s: *mut c_char) {
     if s.is_null() {
         return;
@@ -668,7 +668,7 @@ pub extern "C" fn string_destroy(s: *mut c_char) {
 }
 
 // Get the status code directly from a request ID
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_read_response_status(request_id: RequestId) -> u16 {
     // Get the response info
     let tracker = REQUEST_TRACKER.lock().unwrap();
@@ -684,7 +684,7 @@ pub extern "C" fn request_read_response_status(request_id: RequestId) -> u16 {
 }
 
 // Get the response headers directly from a request ID
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_read_response_headers(request_id: RequestId) -> *mut HeaderMapWrapper {
     // Get the response info
     let tracker = REQUEST_TRACKER.lock().unwrap();
@@ -700,7 +700,7 @@ pub extern "C" fn request_read_response_headers(request_id: RequestId) -> *mut H
 }
 
 // Check if a request has an error (which can then be read with request_read_transport_error)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_has_transport_error(request_id: RequestId) -> bool {
     // Get the response info
     let tracker = REQUEST_TRACKER.lock().unwrap();
@@ -747,7 +747,7 @@ impl RequestBuilderWrapper {
 
 // Create a request builder with specified HTTP method
 // method: HTTP method as an integer (1=GET, 2=POST, 3=PUT, 4=DELETE, etc.)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn client_create_request_builder(
     client_id: ClientId,
     method: u8,
@@ -786,7 +786,7 @@ pub extern "C" fn client_create_request_builder(
 }
 
 // Destroy a request builder without sending
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_builder_destroy(builder_ptr: *mut RequestBuilderWrapper) {
     if !builder_ptr.is_null() {
         unsafe {
@@ -796,7 +796,7 @@ pub extern "C" fn request_builder_destroy(builder_ptr: *mut RequestBuilderWrappe
 }
 
 // Set request timeout
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_builder_timeout_ms(
     builder_ptr: *mut RequestBuilderWrapper,
     timeout_ms: u64,
@@ -810,7 +810,7 @@ pub extern "C" fn request_builder_timeout_ms(
 }
 
 // Set request headers
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_builder_headers(
     builder_ptr: *mut RequestBuilderWrapper,
     headers_ptr: *mut HeaderMapWrapper,
@@ -830,7 +830,7 @@ pub extern "C" fn request_builder_headers(
 }
 
 // Set request body
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_builder_body(
     builder_ptr: *mut RequestBuilderWrapper,
     body: *const c_char,
@@ -856,7 +856,7 @@ pub extern "C" fn request_builder_body(
 }
 
 // Set the output file path for the request, which will cause the response to be streamed to the file.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_builder_set_output_file(
     builder_ptr: *mut RequestBuilderWrapper,
     file_path: *const c_char,
@@ -893,7 +893,7 @@ pub extern "C" fn request_builder_set_output_file(
 // Send the request and get a request ID.
 // If an output file path is set on the builder, the response will be streamed to that file.
 // Otherwise, it will be buffered in memory.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_builder_create_request_and_send(
     builder_ptr: *mut RequestBuilderWrapper,
 ) -> RequestId {
@@ -955,7 +955,7 @@ pub extern "C" fn request_builder_create_request_and_send(
 }
 
 // Add a header to the request
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_builder_header(
     builder_ptr: *mut RequestBuilderWrapper,
     key: *const c_char,
@@ -1015,7 +1015,7 @@ pub extern "C" fn request_builder_header(
 }
 
 // Set query parameters
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_builder_query(
     builder_ptr: *mut RequestBuilderWrapper,
     key: *const c_char,
@@ -1063,7 +1063,7 @@ pub extern "C" fn request_builder_query(
 }
 
 // Set basic authentication
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_builder_basic_auth(
     builder_ptr: *mut RequestBuilderWrapper,
     username: *const c_char,
@@ -1109,7 +1109,7 @@ pub extern "C" fn request_builder_basic_auth(
 }
 
 // Set bearer authentication
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_builder_bearer_auth(
     builder_ptr: *mut RequestBuilderWrapper,
     token: *const c_char,
@@ -1134,7 +1134,7 @@ pub extern "C" fn request_builder_bearer_auth(
 }
 
 // Set JSON body (convenience method that sets content-type header too)
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_builder_json(
     builder_ptr: *mut RequestBuilderWrapper,
     json: *const c_char,
@@ -1169,7 +1169,7 @@ pub extern "C" fn request_builder_json(
 }
 
 // Set a form parameter
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_builder_form(
     builder_ptr: *mut RequestBuilderWrapper,
     key: *const c_char,
@@ -1219,7 +1219,7 @@ pub extern "C" fn request_builder_form(
 // Get the last error message from a RequestBuilder as a C string.
 // This function consumes the error message string, so the builder's
 // error state is cleared after the read.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn request_builder_read_error_message(
     builder_ptr: *mut RequestBuilderWrapper,
     num_bytes: *mut u32,
@@ -1260,7 +1260,7 @@ pub extern "C" fn request_builder_read_error_message(
 // Get the last error message from a ClientBuilder as a C string.
 // This function consumes the error message string, so the builder's
 // error state is cleared after the read.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn client_builder_read_error_message(
     builder_ptr: *mut ClientBuilderWrapper,
     num_bytes: *mut u32,
@@ -1299,7 +1299,7 @@ pub extern "C" fn client_builder_read_error_message(
 }
 
 // Set the User-Agent header for the client.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn client_builder_user_agent(
     builder_ptr: *mut ClientBuilderWrapper,
     user_agent: *const c_char,
