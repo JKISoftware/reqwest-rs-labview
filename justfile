@@ -24,17 +24,26 @@ build:
     just build_windows
     just build_linux
 
-develop_windows:                                            
-    rustup target add i686-pc-windows-msvc
-    rustup target add x86_64-pc-windows-msvc
+develop_windows:                                       
+    @ Write-Host "Installing Rust Windows targets..."
+    @ rustup target add i686-pc-windows-msvc
+    @ rustup target add x86_64-pc-windows-msvc
+    @ # test if the cmake command is available
+    @ if (Test-Path -Path "C:\Program Files\CMake\bin\cmake.exe") { \
+        Write-Host "CMake is installed."; \
+    } else { \
+        Write-Host "CMake is not installed. Please install CMake from https://cmake.org/download/"; \
+    }
 
 develop_linux:
-    rustup target add x86_64-unknown-linux-gnu
-    cargo install cargo-zigbuild
+    @ Write-Host "Installing Rust Linux targets..."
+    @ rustup target add x86_64-unknown-linux-gnu
+    @ Write-Host "Installing cargo-zigbuild..."
+    @ cargo install cargo-zigbuild
 
 develop:
-    just develop_windows
-    just develop_linux
+    @ just develop_windows
+    @ just develop_linux
 
 test:
     cargo test
