@@ -51,14 +51,14 @@ fn wait_for_request_with_retry(request_id: u64, max_retries: u32) -> (u16, Optio
                         .unwrap_or("Invalid UTF-8 in error")
                         .to_string()
                 };
-                free_memory(error_ptr);
+                string_destroy(error_ptr);
                 Some(error_str)
             } else {
                 None
             };
 
             // Clean up the failed request
-            request_cleanup(request_id);
+            request_destroy(request_id);
 
             // Wait a bit before retrying (with exponential backoff)
             let backoff_ms = 100u64 * (1u64 << attempt);
@@ -77,7 +77,7 @@ fn wait_for_request_with_retry(request_id: u64, max_retries: u32) -> (u16, Optio
 
 #[test]
 fn test_header_map() {
-    let headers_ptr = headers_new();
+    let headers_ptr = headers_create();
     assert!(!headers_ptr.is_null());
 
     let key = std::ffi::CString::new("Content-Type").unwrap();
@@ -90,12 +90,12 @@ fn test_header_map() {
     // The main test will verify headers are sent correctly.
     // For now, we just ensure it doesn't crash.
 
-    headers_free(headers_ptr);
+    headers_destroy(headers_ptr);
 }
 
 #[test]
 fn test_headers_get_all() {
-    let headers_ptr = headers_new();
+    let headers_ptr = headers_create();
     assert!(!headers_ptr.is_null());
 
     let key1 = std::ffi::CString::new("Content-Type").unwrap();
@@ -125,14 +125,14 @@ fn test_headers_get_all() {
     // Check for multi-line format
     assert!(headers_str.contains('\n'));
 
-    free_memory(headers_str_ptr);
-    headers_free(headers_ptr);
+    string_destroy(headers_str_ptr);
+    headers_destroy(headers_ptr);
 }
 
 #[test]
 fn test_request_builder_api() {
     // Build a client directly
-    let client_builder_ptr = client_builder_new();
+    let client_builder_ptr = client_builder_create();
     assert!(!client_builder_ptr.is_null());
 
     // Set client timeouts
@@ -140,14 +140,14 @@ fn test_request_builder_api() {
     assert!(client_builder_timeout_ms(client_builder_ptr, 15000));
 
     // Build the client
-    let client_id = client_builder_build(client_builder_ptr);
+    let client_id = client_builder_create_client_and_start(client_builder_ptr);
     assert!(client_id != 0);
 
     // Create a URL for testing
     let url = std::ffi::CString::new("https://httpbin.org/get").unwrap();
 
     // Create a request builder with GET method
-    let request_builder_ptr = client_new_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
+    let request_builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
     assert!(!request_builder_ptr.is_null());
 
     // Set a request-specific timeout (overrides client timeout)
@@ -163,7 +163,7 @@ fn test_request_builder_api() {
     ));
 
     // Send the request. On success, the builder is consumed.
-    let mut request_id = request_builder_send(request_builder_ptr);
+    let mut request_id = request_builder_create_request_and_send(request_builder_ptr);
     assert!(request_id > 0);
 
     // Use our retry helper (max 3 retries)
@@ -186,7 +186,7 @@ fn test_request_builder_api() {
             }
 
             // Clean up the failed request
-            request_cleanup(request_id);
+            request_destroy(request_id);
 
             // Wait a bit before retrying (with exponential backoff)
             let backoff_ms = 100u64 * (1u64 << retry_count);
@@ -194,14 +194,14 @@ fn test_request_builder_api() {
 
             // Create a new request
             let request_builder_ptr =
-                client_new_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
+                client_create_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
             assert!(request_builder_timeout_ms(request_builder_ptr, 15000));
             assert!(request_builder_header(
                 request_builder_ptr,
                 key.as_ptr(),
                 value.as_ptr()
             ));
-            let request_id_new = request_builder_send(request_builder_ptr);
+            let request_id_new = request_builder_create_request_and_send(request_builder_ptr);
             assert!(request_id_new > 0);
             request_id = request_id_new;
         } else {
@@ -232,24 +232,24 @@ fn test_request_builder_api() {
     assert!(body_str.contains("X-Test-Header"));
     assert!(body_str.contains("test-value"));
 
-    // Cleanup
-    free_memory(body_ptr);
-    request_cleanup(request_id);
-    client_close(client_id);
+    // Destroy
+    string_destroy(body_ptr);
+    request_destroy(request_id);
+    client_destroy(client_id);
 }
 
 #[test]
 fn test_request_builder_with_json() {
     // Build a client directly
-    let client_builder_ptr = client_builder_new();
-    let client_id = client_builder_build(client_builder_ptr);
+    let client_builder_ptr = client_builder_create();
+    let client_id = client_builder_create_client_and_start(client_builder_ptr);
     assert!(client_id != 0);
 
     // Create a URL for testing
     let url = std::ffi::CString::new("https://httpbin.org/post").unwrap();
 
     // Create a POST request builder
-    let request_builder_ptr = client_new_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
+    let request_builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
     assert!(!request_builder_ptr.is_null());
 
     // Add JSON body
@@ -257,7 +257,7 @@ fn test_request_builder_with_json() {
     assert!(request_builder_json(request_builder_ptr, json.as_ptr()));
 
     // Send the request. On success, the builder is consumed.
-    let mut request_id = request_builder_send(request_builder_ptr);
+    let mut request_id = request_builder_create_request_and_send(request_builder_ptr);
     assert!(request_id > 0);
 
     // Use our retry helper (max 3 retries)
@@ -280,7 +280,7 @@ fn test_request_builder_with_json() {
             }
 
             // Clean up the failed request
-            request_cleanup(request_id);
+            request_destroy(request_id);
 
             // Wait a bit before retrying (with exponential backoff)
             let backoff_ms = 100u64 * (1u64 << retry_count); // Using bit shift instead of pow
@@ -288,9 +288,9 @@ fn test_request_builder_with_json() {
 
             // Create a new request
             let request_builder_ptr =
-                client_new_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
+                client_create_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
             assert!(request_builder_json(request_builder_ptr, json.as_ptr()));
-            let request_id_new = request_builder_send(request_builder_ptr);
+            let request_id_new = request_builder_create_request_and_send(request_builder_ptr);
             assert!(request_id_new > 0);
             request_id = request_id_new;
         } else {
@@ -326,26 +326,26 @@ fn test_request_builder_with_json() {
     assert!(body_str.contains("\"test\""));
     assert!(body_str.contains("123"));
 
-    // Cleanup
-    free_memory(body_ptr);
-    request_builder_free(request_builder_ptr);
-    request_cleanup(request_id);
-    client_builder_free(client_builder_ptr);
-    client_close(client_id);
+    // Destroy
+    string_destroy(body_ptr);
+    request_builder_destroy(request_builder_ptr);
+    request_destroy(request_id);
+    client_builder_destroy(client_builder_ptr);
+    client_destroy(client_id);
 }
 
 #[test]
 fn test_request_builder_query_params() {
     // Build a client
-    let client_builder_ptr = client_builder_new();
-    let client_id = client_builder_build(client_builder_ptr);
+    let client_builder_ptr = client_builder_create();
+    let client_id = client_builder_create_client_and_start(client_builder_ptr);
     assert!(client_id != 0);
 
     // Create a URL for testing
     let url = std::ffi::CString::new("https://httpbin.org/get").unwrap();
 
     // Create a GET request builder
-    let builder_ptr = client_new_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
+    let builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
     assert!(!builder_ptr.is_null());
 
     // Add query parameters
@@ -358,7 +358,7 @@ fn test_request_builder_query_params() {
     ));
 
     // Send the request. On success, the builder is consumed.
-    let mut request_id = request_builder_send(builder_ptr);
+    let mut request_id = request_builder_create_request_and_send(builder_ptr);
     assert!(request_id > 0);
 
     // Use our retry helper (max 3 retries)
@@ -381,20 +381,20 @@ fn test_request_builder_query_params() {
             }
 
             // Clean up the failed request
-            request_cleanup(request_id);
+            request_destroy(request_id);
 
             // Wait a bit before retrying (with exponential backoff)
             let backoff_ms = 100u64 * (1u64 << retry_count); // Using bit shift instead of pow
             std::thread::sleep(Duration::from_millis(backoff_ms));
 
             // Create a new request
-            let builder_ptr = client_new_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
+            let builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
             assert!(request_builder_query(
                 builder_ptr,
                 key.as_ptr(),
                 value.as_ptr()
             ));
-            let request_id_new = request_builder_send(builder_ptr);
+            let request_id_new = request_builder_create_request_and_send(builder_ptr);
             assert!(request_id_new > 0);
             request_id = request_id_new;
         } else {
@@ -425,26 +425,26 @@ fn test_request_builder_query_params() {
     assert!(body_str.contains("param1"));
     assert!(body_str.contains("test123"));
 
-    // Cleanup
-    free_memory(body_ptr);
-    request_builder_free(builder_ptr);
-    request_cleanup(request_id);
-    client_builder_free(client_builder_ptr);
-    client_close(client_id);
+    // Destroy
+    string_destroy(body_ptr);
+    request_builder_destroy(builder_ptr);
+    request_destroy(request_id);
+    client_builder_destroy(client_builder_ptr);
+    client_destroy(client_id);
 }
 
 #[test]
 fn test_request_builder_auth() {
     // Build a client
-    let client_builder_ptr = client_builder_new();
-    let client_id = client_builder_build(client_builder_ptr);
+    let client_builder_ptr = client_builder_create();
+    let client_id = client_builder_create_client_and_start(client_builder_ptr);
     assert!(client_id != 0);
 
     // Create a URL for testing that requires auth
     let url = std::ffi::CString::new("https://httpbin.org/basic-auth/user/passwd").unwrap();
 
     // Create a GET request builder
-    let builder_ptr = client_new_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
+    let builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
     assert!(!builder_ptr.is_null());
 
     // Add basic auth
@@ -457,7 +457,7 @@ fn test_request_builder_auth() {
     ));
 
     // Send the request. On success, the builder is consumed.
-    let mut request_id = request_builder_send(builder_ptr);
+    let mut request_id = request_builder_create_request_and_send(builder_ptr);
     assert!(request_id > 0);
 
     // Use our retry helper (max 3 retries)
@@ -480,20 +480,20 @@ fn test_request_builder_auth() {
             }
 
             // Clean up the failed request
-            request_cleanup(request_id);
+            request_destroy(request_id);
 
             // Wait a bit before retrying (with exponential backoff)
             let backoff_ms = 100u64 * (1u64 << retry_count); // Using bit shift instead of pow
             std::thread::sleep(Duration::from_millis(backoff_ms));
 
             // Create a new request
-            let builder_ptr = client_new_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
+            let builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
             assert!(request_builder_basic_auth(
                 builder_ptr,
                 username.as_ptr(),
                 password.as_ptr()
             ));
-            let request_id_new = request_builder_send(builder_ptr);
+            let request_id_new = request_builder_create_request_and_send(builder_ptr);
             assert!(request_id_new > 0);
             request_id = request_id_new;
         } else {
@@ -514,26 +514,26 @@ fn test_request_builder_auth() {
     assert!(!body_ptr.is_null());
     assert!(body_len > 0);
 
-    // Cleanup
-    free_memory(body_ptr);
-    request_builder_free(builder_ptr);
-    request_cleanup(request_id);
-    client_builder_free(client_builder_ptr);
-    client_close(client_id);
+    // Destroy
+    string_destroy(body_ptr);
+    request_builder_destroy(builder_ptr);
+    request_destroy(request_id);
+    client_builder_destroy(client_builder_ptr);
+    client_destroy(client_id);
 }
 
 #[test]
 fn test_request_builder_form_data() {
     // Build a client
-    let client_builder_ptr = client_builder_new();
-    let client_id = client_builder_build(client_builder_ptr);
+    let client_builder_ptr = client_builder_create();
+    let client_id = client_builder_create_client_and_start(client_builder_ptr);
     assert!(client_id != 0);
 
     // Create a URL for testing
     let url = std::ffi::CString::new("https://httpbin.org/post").unwrap();
 
     // Create a POST request builder
-    let builder_ptr = client_new_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
+    let builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
     assert!(!builder_ptr.is_null());
 
     // Add form data
@@ -546,7 +546,7 @@ fn test_request_builder_form_data() {
     ));
 
     // Send the request. On success, the builder is consumed.
-    let mut request_id = request_builder_send(builder_ptr);
+    let mut request_id = request_builder_create_request_and_send(builder_ptr);
     assert!(request_id > 0);
 
     // Use our retry helper (max 3 retries)
@@ -569,20 +569,20 @@ fn test_request_builder_form_data() {
             }
 
             // Clean up the failed request
-            request_cleanup(request_id);
+            request_destroy(request_id);
 
             // Wait a bit before retrying (with exponential backoff)
             let backoff_ms = 100u64 * (1u64 << retry_count); // Using bit shift instead of pow
             std::thread::sleep(Duration::from_millis(backoff_ms));
 
             // Create a new request
-            let builder_ptr = client_new_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
+            let builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
             assert!(request_builder_form(
                 builder_ptr,
                 key.as_ptr(),
                 value.as_ptr()
             ));
-            let request_id_new = request_builder_send(builder_ptr);
+            let request_id_new = request_builder_create_request_and_send(builder_ptr);
             assert!(request_id_new > 0);
             request_id = request_id_new;
         } else {
@@ -613,19 +613,19 @@ fn test_request_builder_form_data() {
     assert!(body_str.contains("field1"));
     assert!(body_str.contains("form-value"));
 
-    // Cleanup
-    free_memory(body_ptr);
-    request_builder_free(builder_ptr);
-    request_cleanup(request_id);
-    client_builder_free(client_builder_ptr);
-    client_close(client_id);
+    // Destroy
+    string_destroy(body_ptr);
+    request_builder_destroy(builder_ptr);
+    request_destroy(request_id);
+    client_builder_destroy(client_builder_ptr);
+    client_destroy(client_id);
 }
 
 #[test]
 fn test_retry_mechanism() {
     // Build a client
-    let client_builder_ptr = client_builder_new();
-    let client_id = client_builder_build(client_builder_ptr);
+    let client_builder_ptr = client_builder_create();
+    let client_id = client_builder_create_client_and_start(client_builder_ptr);
     assert!(client_id != 0);
 
     // Create a URL for a non-existent endpoint that will return 404
@@ -633,11 +633,11 @@ fn test_retry_mechanism() {
     let url = std::ffi::CString::new("https://httpbin.org/status/404").unwrap();
 
     // Create a GET request builder
-    let builder_ptr = client_new_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
+    let builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
     assert!(!builder_ptr.is_null());
 
     // Send the request. On success, the builder is consumed.
-    let mut request_id = request_builder_send(builder_ptr);
+    let mut request_id = request_builder_create_request_and_send(builder_ptr);
     assert!(request_id > 0);
 
     // Use our retry helper (max 3 retries)
@@ -660,15 +660,15 @@ fn test_retry_mechanism() {
             }
 
             // Clean up the failed request
-            request_cleanup(request_id);
+            request_destroy(request_id);
 
             // Wait a bit before retrying (with exponential backoff)
             let backoff_ms = 100u64 * (1u64 << retry_count);
             std::thread::sleep(Duration::from_millis(backoff_ms));
 
             // Create a new request
-            let builder_ptr = client_new_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
-            let request_id_new = request_builder_send(builder_ptr);
+            let builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
+            let request_id_new = request_builder_create_request_and_send(builder_ptr);
             assert!(request_id_new > 0);
             request_id = request_id_new;
         } else {
@@ -685,11 +685,11 @@ fn test_retry_mechanism() {
 
     // Now try with a 500 error endpoint
     let url_500 = std::ffi::CString::new("https://httpbin.org/status/500").unwrap();
-    let builder_ptr_500 = client_new_request_builder(client_id, HTTP_METHOD_GET, url_500.as_ptr());
+    let builder_ptr_500 = client_create_request_builder(client_id, HTTP_METHOD_GET, url_500.as_ptr());
     assert!(!builder_ptr_500.is_null());
 
     // Send the request. On success, the builder is consumed.
-    let mut request_id = request_builder_send(builder_ptr_500);
+    let mut request_id = request_builder_create_request_and_send(builder_ptr_500);
     assert!(request_id > 0);
 
     // Reset counters
@@ -711,7 +711,7 @@ fn test_retry_mechanism() {
             }
 
             // Clean up the failed request
-            request_cleanup(request_id);
+            request_destroy(request_id);
 
             // Wait a bit before retrying (with exponential backoff)
             let backoff_ms = 100u64 * (1u64 << retry_count);
@@ -719,8 +719,8 @@ fn test_retry_mechanism() {
 
             // Create a new request
             let builder_ptr =
-                client_new_request_builder(client_id, HTTP_METHOD_GET, url_500.as_ptr());
-            let request_id_new = request_builder_send(builder_ptr);
+                client_create_request_builder(client_id, HTTP_METHOD_GET, url_500.as_ptr());
+            let request_id_new = request_builder_create_request_and_send(builder_ptr);
             assert!(request_id_new > 0);
             request_id = request_id_new;
         } else {
@@ -738,17 +738,17 @@ fn test_retry_mechanism() {
         "Final status should still be 500 after retries"
     );
 
-    // Cleanup
-    request_builder_free(builder_ptr_500);
-    request_cleanup(request_id);
-    client_builder_free(client_builder_ptr);
-    client_close(client_id);
+    // Destroy
+    request_builder_destroy(builder_ptr_500);
+    request_destroy(request_id);
+    client_builder_destroy(client_builder_ptr);
+    client_destroy(client_id);
 }
 
 #[test]
 fn test_client_builder_error_handling() {
     // Create a new client builder
-    let client_builder_ptr = client_builder_new();
+    let client_builder_ptr = client_builder_create();
     assert!(!client_builder_ptr.is_null());
 
     // Intentionally create an invalid configuration by setting a User-Agent
@@ -761,7 +761,7 @@ fn test_client_builder_error_handling() {
     ));
 
     // Now attempt to build the client - it should fail and return 0
-    let client_id = client_builder_build(client_builder_ptr);
+    let client_id = client_builder_create_client_and_start(client_builder_ptr);
 
     // The build should have failed, so the client id must be 0.
     assert!(
@@ -788,8 +788,8 @@ fn test_client_builder_error_handling() {
             .to_string()
     };
 
-    // Free the error message memory
-    free_memory(error_ptr);
+    // Destroy the error message memory
+    string_destroy(error_ptr);
 
     // The error should contain the expected message about the invalid header value
     let expected_error_part = "builder error";
@@ -805,14 +805,14 @@ fn test_client_builder_error_handling() {
         error_str
     );
 
-    // IMPORTANT: The caller must now free the builder if the build fails.
-    client_builder_free(client_builder_ptr);
+    // IMPORTANT: The caller must now destroy the builder if the build fails.
+    client_builder_destroy(client_builder_ptr);
 }
 
 #[test]
 fn test_isolated_client_builder_errors() {
     // === Builder 1: Invalid Proxy URL ===
-    let builder1_ptr = client_builder_new();
+    let builder1_ptr = client_builder_create();
     assert!(!builder1_ptr.is_null());
 
     // Set an invalid proxy URL, which should fail immediately and set the error.
@@ -824,7 +824,7 @@ fn test_isolated_client_builder_errors() {
     );
 
     // === Builder 2: Invalid User-Agent Header ===
-    let builder2_ptr = client_builder_new();
+    let builder2_ptr = client_builder_create();
     assert!(!builder2_ptr.is_null());
 
     // Set an invalid User-Agent. This doesn't fail immediately,
@@ -833,7 +833,7 @@ fn test_isolated_client_builder_errors() {
     client_builder_user_agent(builder2_ptr, invalid_user_agent.as_ptr());
 
     // Attempt to build the client, which should fail.
-    let client2_id = client_builder_build(builder2_ptr);
+    let client2_id = client_builder_create_client_and_start(builder2_ptr);
     assert_eq!(
         client2_id, 0,
         "Client build should fail with an invalid User-Agent."
@@ -852,7 +852,7 @@ fn test_isolated_client_builder_errors() {
         let slice = std::slice::from_raw_parts(error1_ptr as *const u8, error1_len as usize);
         std::str::from_utf8(slice).unwrap().to_string()
     };
-    free_memory(error1_ptr);
+    string_destroy(error1_ptr);
     assert!(
         error1_str.contains("Invalid proxy URL"),
         "Builder 1's error message is incorrect. Got: {}",
@@ -870,7 +870,7 @@ fn test_isolated_client_builder_errors() {
         let slice = std::slice::from_raw_parts(error2_ptr as *const u8, error2_len as usize);
         std::str::from_utf8(slice).unwrap().to_string()
     };
-    free_memory(error2_ptr);
+    string_destroy(error2_ptr);
     assert!(
         error2_str.contains("Failed to build client"),
         "Builder 2's error message is incorrect. Got: {}",
@@ -886,22 +886,22 @@ fn test_isolated_client_builder_errors() {
     println!("Builder 1 error: {}", error1_str);
     println!("Builder 2 error: {}", error2_str);
 
-    // === Cleanup ===
-    client_builder_free(builder1_ptr);
-    client_builder_free(builder2_ptr);
+    // === Destroy ===
+    client_builder_destroy(builder1_ptr);
+    client_builder_destroy(builder2_ptr);
 }
 
 #[test]
 fn test_isolated_request_builder_errors() {
     // Create a client to be used by the request builders
-    let client_builder_ptr = client_builder_new();
-    let client_id = client_builder_build(client_builder_ptr);
+    let client_builder_ptr = client_builder_create();
+    let client_id = client_builder_create_client_and_start(client_builder_ptr);
     assert!(client_id != 0);
 
     let url = std::ffi::CString::new("https://httpbin.org/post").unwrap();
 
     // === Builder 1: Invalid JSON Body ===
-    let builder1_ptr = client_new_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
+    let builder1_ptr = client_create_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
     assert!(!builder1_ptr.is_null());
 
     // Set a malformed JSON body
@@ -913,11 +913,11 @@ fn test_isolated_request_builder_errors() {
     );
 
     // Attempting to send this builder should fail immediately and return 0
-    let request1_id = request_builder_send(builder1_ptr);
+    let request1_id = request_builder_create_request_and_send(builder1_ptr);
     assert_eq!(request1_id, 0, "Sending a builder with a config error should fail.");
 
     // === Builder 2: Invalid Header ===
-    let builder2_ptr = client_new_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
+    let builder2_ptr = client_create_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
     assert!(!builder2_ptr.is_null());
 
     // Set an invalid header key
@@ -942,7 +942,7 @@ fn test_isolated_request_builder_errors() {
         let slice = std::slice::from_raw_parts(error1_ptr as *const u8, error1_len as usize);
         std::str::from_utf8(slice).unwrap().to_string()
     };
-    free_memory(error1_ptr);
+    string_destroy(error1_ptr);
     assert!(
         error1_str.contains("Invalid JSON format"),
         "Builder 1's error message is incorrect. Got: {}",
@@ -960,7 +960,7 @@ fn test_isolated_request_builder_errors() {
         let slice = std::slice::from_raw_parts(error2_ptr as *const u8, error2_len as usize);
         std::str::from_utf8(slice).unwrap().to_string()
     };
-    free_memory(error2_ptr);
+    string_destroy(error2_ptr);
     assert!(
         error2_str.contains("Invalid header name"),
         "Builder 2's error message is incorrect. Got: {}",
@@ -976,8 +976,8 @@ fn test_isolated_request_builder_errors() {
     println!("Request Builder 1 error: {}", error1_str);
     println!("Request Builder 2 error: {}", error2_str);
 
-    // === Cleanup ===
-    request_builder_free(builder1_ptr);
-    request_builder_free(builder2_ptr);
-    client_close(client_id);
+    // === Destroy ===
+    request_builder_destroy(builder1_ptr);
+    request_builder_destroy(builder2_ptr);
+    client_destroy(client_id);
 }

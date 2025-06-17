@@ -33,7 +33,7 @@ lazy_static::lazy_static! {
 }
 
 // Helper function to create a new request ID
-fn request_builder_new_request_id() -> RequestId {
+fn request_builder_create_request_id() -> RequestId {
     let mut id = NEXT_REQUEST_ID.lock().unwrap();
     let current = *id;
     *id += 1;
@@ -98,13 +98,13 @@ pub struct ClientWrapper(Client);
 
 // Create a new header map
 #[no_mangle]
-pub extern "C" fn headers_new() -> *mut HeaderMapWrapper {
+pub extern "C" fn headers_create() -> *mut HeaderMapWrapper {
     Box::into_raw(Box::new(HeaderMapWrapper(HeaderMap::new())))
 }
 
-// Free a header map
+// Destroy a header map
 #[no_mangle]
-pub extern "C" fn headers_free(map_ptr: *mut HeaderMapWrapper) {
+pub extern "C" fn headers_destroy(map_ptr: *mut HeaderMapWrapper) {
     if map_ptr.is_null() {
         return;
     }
@@ -198,16 +198,16 @@ pub struct ClientBuilderWrapper {
 
 // Create a new client builder
 #[no_mangle]
-pub extern "C" fn client_builder_new() -> *mut ClientBuilderWrapper {
+pub extern "C" fn client_builder_create() -> *mut ClientBuilderWrapper {
     Box::into_raw(Box::new(ClientBuilderWrapper {
         builder: Client::builder(),
         error_message: None,
     }))
 }
 
-// Free a client builder if it's not used
+// Destroy a client builder if it's not used
 #[no_mangle]
-pub extern "C" fn client_builder_free(builder_ptr: *mut ClientBuilderWrapper) {
+pub extern "C" fn client_builder_destroy(builder_ptr: *mut ClientBuilderWrapper) {
     if builder_ptr.is_null() {
         return;
     }
@@ -366,7 +366,7 @@ pub extern "C" fn client_builder_https_proxy(
 
 // Build the client from the builder
 #[no_mangle]
-pub extern "C" fn client_builder_build(builder_ptr: *mut ClientBuilderWrapper) -> ClientId {
+pub extern "C" fn client_builder_create_client_and_start(builder_ptr: *mut ClientBuilderWrapper) -> ClientId {
     if builder_ptr.is_null() {
         return 0;
     }
@@ -380,7 +380,7 @@ pub extern "C" fn client_builder_build(builder_ptr: *mut ClientBuilderWrapper) -
 
     match builder_to_build.build() {
         Ok(client) => {
-            // On success, the caller is still responsible for freeing the builder.
+            // On success, the caller is still responsible for destroying the builder.
             let client_wrapper = ClientWrapper(client);
             let client_id = NEXT_CLIENT_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
@@ -397,16 +397,16 @@ pub extern "C" fn client_builder_build(builder_ptr: *mut ClientBuilderWrapper) -
         }
         Err(e) => {
             // On failure, store the error in the wrapper. The caller is responsible
-            // for freeing the builder.
+            // for destroying the builder.
             builder_wrapper.error_message = Some(format!("Failed to build client: {}", e));
             0 // Return 0 to indicate failure
         }
     }
 }
 
-// Close a reqwest client and free the memory
+// Destroy a reqwest client and destroy the memory
 #[no_mangle]
-pub extern "C" fn client_close(client_id: ClientId) {
+pub extern "C" fn client_destroy(client_id: ClientId) {
     if client_id == 0 {
         return;
     }
@@ -424,7 +424,7 @@ pub extern "C" fn client_close(client_id: ClientId) {
     let mut clients = CLIENTS.lock().unwrap();
     clients.remove(&client_id);
 
-    // Yield to ensure proper cleanup
+    // Yield to ensure proper destroy
     GLOBAL_RUNTIME.block_on(async {
         tokio::task::yield_now().await;
     });
@@ -643,7 +643,7 @@ pub extern "C" fn request_cancel(request_id: RequestId) -> bool {
 }
 
 #[no_mangle]
-pub extern "C" fn request_cleanup(request_id: RequestId) {
+pub extern "C" fn request_destroy(request_id: RequestId) {
     // Remove the request from the tracker
     let mut tracker = REQUEST_TRACKER.lock().unwrap();
     tracker.remove(&request_id);
@@ -655,10 +655,10 @@ pub extern "C" fn request_cleanup(request_id: RequestId) {
     }
 }
 
-// exported function that frees the memory allocated for a string
+// exported function that destroys the memory allocated for a string
 // this *must* be called for every string returned from a function in this library
 #[no_mangle]
-pub extern "C" fn free_memory(s: *mut c_char) {
+pub extern "C" fn string_destroy(s: *mut c_char) {
     if s.is_null() {
         return;
     }
@@ -748,7 +748,7 @@ impl RequestBuilderWrapper {
 // Create a request builder with specified HTTP method
 // method: HTTP method as an integer (1=GET, 2=POST, 3=PUT, 4=DELETE, etc.)
 #[no_mangle]
-pub extern "C" fn client_new_request_builder(
+pub extern "C" fn client_create_request_builder(
     client_id: ClientId,
     method: u8,
     url: *const c_char,
@@ -785,9 +785,9 @@ pub extern "C" fn client_new_request_builder(
     }))
 }
 
-// Free a request builder without sending
+// Destroy a request builder without sending
 #[no_mangle]
-pub extern "C" fn request_builder_free(builder_ptr: *mut RequestBuilderWrapper) {
+pub extern "C" fn request_builder_destroy(builder_ptr: *mut RequestBuilderWrapper) {
     if !builder_ptr.is_null() {
         unsafe {
             let _ = Box::from_raw(builder_ptr);
@@ -894,7 +894,7 @@ pub extern "C" fn request_builder_set_output_file(
 // If an output file path is set on the builder, the response will be streamed to that file.
 // Otherwise, it will be buffered in memory.
 #[no_mangle]
-pub extern "C" fn request_builder_send(
+pub extern "C" fn request_builder_create_request_and_send(
     builder_ptr: *mut RequestBuilderWrapper,
 ) -> RequestId {
     if builder_ptr.is_null() {
@@ -914,18 +914,18 @@ pub extern "C" fn request_builder_send(
         b
     } else {
         // The builder was already consumed. This is a usage error.
-        // Set an error on the wrapper and return. Caller is responsible for freeing.
+        // Set an error on the wrapper and return. Caller is responsible for destroying.
         builder_wrapper.error_message = Some("Request builder was already consumed.".to_string());
         return 0;
     };
 
     // The builder has been used to create the request, but the caller is still
-    // responsible for freeing the wrapper.
+    // responsible for destroying the wrapper.
     let client_id = builder_wrapper.client_id;
     let output_file_path = builder_wrapper.output_file_path.clone();
 
     // Create a new request ID
-    let request_id = request_builder_new_request_id();
+    let request_id = request_builder_create_request_id();
 
     // Create progress tracking
     let progress_info = Arc::new(RwLock::new(RequestProgress {
