@@ -1,100 +1,42 @@
+/*
+ * reqwest-rs-labview: A LabVIEW-compatible wrapper for the reqwest HTTP client library
+ * 
+ * This file is the main entry point for the library and re-exports the FFI functions
+ * from the various modules.
+ */
+
 use libc::c_char;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
-    tls, Client, ClientBuilder, RequestBuilder, StatusCode,
+    Client, RequestBuilder,
 };
 use serde_json;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     ffi::{c_void, CStr},
     ptr,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, RwLock},
     time::Duration,
 };
 
+// Internal modules
+mod types;
+mod globals;
+mod helpers;
 mod async_support;
 
-// Types to track ongoing requests
-type RequestId = u64;
-type ClientId = u64;
-type ProgressInfo = Arc<RwLock<RequestProgress>>;
+// Import from modules
+use types::{
+    ClientBuilderWrapper, ClientId, ClientWrapper, HeaderMapWrapper, 
+    RequestBuilderWrapper, RequestId, RequestProgress, RequestStatus, Response
+};
+use globals::{
+    REQUEST_TRACKER, CLIENTS, NEXT_CLIENT_ID, CLIENT_REQUESTS, GLOBAL_RUNTIME,
+    request_builder_create_request_id, client_register_request, client_cancel_requests
+};
+use helpers::{convert_tls_version, convert_method};
 
-// Global runtime and request tracker
-lazy_static::lazy_static! {
-    static ref REQUEST_TRACKER: Mutex<HashMap<RequestId, ProgressInfo>> = Mutex::new(HashMap::new());
-    static ref NEXT_REQUEST_ID: Mutex<RequestId> = Mutex::new(1);
-    static ref CLIENTS: Mutex<HashMap<ClientId, ClientWrapper>> = Mutex::new(HashMap::new());
-    static ref NEXT_CLIENT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-    static ref CLIENT_REQUESTS: Mutex<HashMap<ClientId, HashSet<RequestId>>> = Mutex::new(HashMap::new());
-    static ref GLOBAL_RUNTIME: tokio::runtime::Runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to create global Tokio runtime");
-}
-
-// Helper function to create a new request ID
-fn request_builder_create_request_id() -> RequestId {
-    let mut id = NEXT_REQUEST_ID.lock().unwrap();
-    let current = *id;
-    *id += 1;
-    current
-}
-
-// Helper function to register a request with a client
-fn client_register_request(client_id: ClientId, request_id: RequestId) {
-    let mut client_requests = CLIENT_REQUESTS.lock().unwrap();
-    client_requests
-        .entry(client_id)
-        .or_insert_with(HashSet::new)
-        .insert(request_id);
-}
-
-// Helper function to mark all requests for a client as cancelled
-fn client_cancel_requests(client_id: ClientId) {
-    let requests_to_cancel = {
-        let mut client_requests = CLIENT_REQUESTS.lock().unwrap();
-        client_requests.remove(&client_id).unwrap_or_default()
-    };
-
-    let tracker = REQUEST_TRACKER.lock().unwrap();
-    for request_id in requests_to_cancel {
-        if let Some(progress_info) = tracker.get(&request_id) {
-            let mut progress = progress_info.write().unwrap();
-            if progress.status == RequestStatus::InProgress {
-                progress.status = RequestStatus::Cancelled;
-            }
-        }
-    }
-}
-
-// Struct to track progress of the request (i.e. the response)
-struct RequestProgress {
-    status: RequestStatus,
-    total_bytes: Option<u64>,
-    received_bytes: u64,
-    final_response: Option<Response>,
-}
-
-// Enum to track request status
-#[derive(PartialEq)]
-enum RequestStatus {
-    InProgress,
-    Completed,
-    Error,
-    Cancelled,
-}
-
-pub struct Response {
-    status: StatusCode,
-    headers: HeaderMap,
-    body: Result<Vec<u8>, String>,
-}
-
-// Wrapper for the reqwest HeaderMap
-pub struct HeaderMapWrapper(HeaderMap);
-
-// Wrapper for the reqwest Client
-pub struct ClientWrapper(Client);
+// Using types from types.rs module
 
 // Create a new header map
 #[unsafe(no_mangle)]
@@ -190,11 +132,7 @@ pub extern "C" fn headers_add(
     true
 }
 
-// Wrapper for the reqwest ClientBuilder
-pub struct ClientBuilderWrapper {
-    builder: ClientBuilder,
-    error_message: Option<String>,
-}
+// ClientBuilderWrapper now defined in types.rs
 
 // Create a new client builder
 #[unsafe(no_mangle)]
@@ -291,20 +229,7 @@ pub extern "C" fn client_builder_danger_accept_invalid_certs(
     true
 }
 
-// TLS Version constants
-// These values should match the enum values defined in LabVIEW if any.
-// We only expose the versions relevant for testing this feature.
-const TLS_VERSION_1_2: u8 = 1;
-const TLS_VERSION_1_3: u8 = 2;
-
-// Helper function to convert version integer to reqwest::tls::Version
-fn convert_tls_version(version: u8) -> Option<tls::Version> {
-    match version {
-        TLS_VERSION_1_2 => Some(tls::Version::TLS_1_2),
-        TLS_VERSION_1_3 => Some(tls::Version::TLS_1_3),
-        _ => None,
-    }
-}
+// Helper function now in helpers.rs module
 
 // Set the minimum TLS version
 #[unsafe(no_mangle)]
@@ -521,42 +446,9 @@ pub extern "C" fn client_destroy(client_id: ClientId) {
     });
 }
 
-// HTTP method constants (internal use only)
-// These values should match the enum values defined in LabVIEW
-// 1: GET
-// 2: POST
-// 3: PUT
-// 4: DELETE
-// 5: HEAD
-// 6: OPTIONS
-// 7: CONNECT
-// 8: PATCH
-// 9: TRACE
-const HTTP_METHOD_GET: u8 = 1;
-const HTTP_METHOD_POST: u8 = 2;
-const HTTP_METHOD_PUT: u8 = 3;
-const HTTP_METHOD_DELETE: u8 = 4;
-const HTTP_METHOD_HEAD: u8 = 5;
-const HTTP_METHOD_OPTIONS: u8 = 6;
-const HTTP_METHOD_CONNECT: u8 = 7;
-const HTTP_METHOD_PATCH: u8 = 8;
-const HTTP_METHOD_TRACE: u8 = 9;
+// HTTP method constants now defined in types.rs
 
-// Helper function to convert method integer to reqwest::Method
-fn convert_method(method: u8) -> Option<reqwest::Method> {
-    match method {
-        HTTP_METHOD_GET => Some(reqwest::Method::GET),
-        HTTP_METHOD_POST => Some(reqwest::Method::POST),
-        HTTP_METHOD_PUT => Some(reqwest::Method::PUT),
-        HTTP_METHOD_DELETE => Some(reqwest::Method::DELETE),
-        HTTP_METHOD_HEAD => Some(reqwest::Method::HEAD),
-        HTTP_METHOD_OPTIONS => Some(reqwest::Method::OPTIONS),
-        HTTP_METHOD_CONNECT => Some(reqwest::Method::CONNECT),
-        HTTP_METHOD_PATCH => Some(reqwest::Method::PATCH),
-        HTTP_METHOD_TRACE => Some(reqwest::Method::TRACE),
-        _ => None,
-    }
-}
+// Helper function now in helpers.rs module
 
 #[unsafe(no_mangle)]
 pub extern "C" fn request_is_complete(request_id: RequestId) -> bool {
@@ -806,13 +698,7 @@ pub extern "C" fn request_has_transport_error(request_id: RequestId) -> bool {
     false // Return false if request not found or no response yet
 }
 
-// Wrapper for the reqwest RequestBuilder
-pub struct RequestBuilderWrapper {
-    builder: Option<RequestBuilder>,
-    client_id: ClientId,
-    output_file_path: Option<String>,
-    error_message: Option<String>,
-}
+// RequestBuilderWrapper now defined in types.rs
 
 impl RequestBuilderWrapper {
     // Helper method to take the builder out, apply a function, and put it back
