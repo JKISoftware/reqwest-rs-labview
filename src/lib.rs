@@ -364,6 +364,97 @@ pub extern "C" fn client_builder_https_proxy(
     true
 }
 
+// Set a proxy for all protocols with optional authentication.
+#[unsafe(no_mangle)]
+pub extern "C" fn client_builder_set_proxy(
+    builder_ptr: *mut ClientBuilderWrapper,
+    server: *const c_char,
+    port: u16,
+    username: *const c_char,
+    password: *const c_char,
+) -> bool {
+    if builder_ptr.is_null() || server.is_null() {
+        return false;
+    }
+    let builder_wrapper = unsafe { &mut *builder_ptr };
+
+    let server_str = unsafe {
+        match CStr::from_ptr(server).to_str() {
+            Ok(s) => s,
+            Err(_) => {
+                builder_wrapper.error_message = Some("Invalid UTF-8 in proxy server".to_string());
+                return false;
+            }
+        }
+    };
+
+    if server_str.is_empty() {
+        builder_wrapper.error_message = Some("Proxy server cannot be empty".to_string());
+        return false;
+    }
+
+    let proxy_url = format!("http://{}:{}", server_str, port);
+
+    let mut proxy = match reqwest::Proxy::all(&proxy_url) {
+        Ok(p) => p,
+        Err(e) => {
+            builder_wrapper.error_message = Some(format!("Invalid proxy URL: {}", e));
+            return false;
+        }
+    };
+
+    let username_str = if !username.is_null() {
+        unsafe {
+            match CStr::from_ptr(username).to_str() {
+                Ok(s) => s,
+                Err(_) => {
+                    builder_wrapper.error_message =
+                        Some("Invalid UTF-8 in proxy username".to_string());
+                    return false;
+                }
+            }
+        }
+    } else {
+        "" // empty string if null
+    };
+
+    if !username_str.is_empty() {
+        let password_str = if !password.is_null() {
+            unsafe {
+                match CStr::from_ptr(password).to_str() {
+                    Ok(s) => s,
+                    Err(_) => {
+                        builder_wrapper.error_message =
+                            Some("Invalid UTF-8 in proxy password".to_string());
+                        return false;
+                    }
+                }
+            }
+        } else {
+            "" // empty string if null
+        };
+        proxy = proxy.basic_auth(username_str, password_str);
+    }
+
+    let builder = unsafe { std::mem::take(&mut (*builder_ptr).builder) };
+    unsafe { &mut *builder_ptr }.builder = builder.proxy(proxy);
+    true
+}
+
+// Disable proxy for the client
+#[unsafe(no_mangle)]
+pub extern "C" fn client_builder_no_proxy(builder_ptr: *mut ClientBuilderWrapper) -> bool {
+    if builder_ptr.is_null() {
+        return false;
+    }
+    let builder = unsafe {
+        // an unsafe block is required to dereference the raw pointer
+        std::mem::take(&mut (*builder_ptr).builder)
+    };
+    unsafe { &mut *builder_ptr }.builder = builder.no_proxy();
+    true
+}
+
 // Build the client from the builder
 #[unsafe(no_mangle)]
 pub extern "C" fn client_builder_create_client_and_start(builder_ptr: *mut ClientBuilderWrapper) -> ClientId {
