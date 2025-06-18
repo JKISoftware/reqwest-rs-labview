@@ -40,6 +40,11 @@ jobs:
             shared-lib-extension: dll
             bitness: 32
             container: ''
+          - target: armv7-unknown-linux-gnueabihf
+            runs-on: ubuntu-latest
+            container: ''
+            shared-lib-extension: so
+            bitness: 64
           # - target: x86_64-apple-darwin
           #   arch: x86_64
           #   runs-on: macos-latest
