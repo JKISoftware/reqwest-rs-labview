@@ -68,7 +68,6 @@ jobs:
       run: |
         sudo apt-get update -y
         sudo apt-get install -y pkg-config libssl-dev
-        sudo apt-get gcc-arm-linux-gnueabihf
 
     - name: Cache
       uses: actions/cache@v4
@@ -79,10 +78,18 @@ jobs:
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         
-    - name: Build
+    - name: Build Linux
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        cargo install --locked cargo-zigbuild
+        rustup target add ${{ matrix.target }}
+        cargo zigbuild --target=${{ matrix.target }} --verbose --${{ env.BUILD_TYPE }}
+
+    - name: Build Non-Linux
+      if: ${{ runner.os != 'Linux' }}
       run: |
         rustup target add ${{ matrix.target }}
-        cargo build --target=${{ matrix.target }} --verbose --${{ env.BUILD_TYPE }}
+        cargo build --target=${{ matrix.target }} --verbose --${{ 
         
     - name: Rename shared library
       shell: bash
