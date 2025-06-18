@@ -1,164 +1,142 @@
-use crate::{RequestStatus, Response};
-use reqwest::{header::HeaderMap, StatusCode};
-use std::sync::{Arc, RwLock};
+use crate::types::{RequestStatus, Response, RequestProgress};
+use reqwest::{Response as ReqwestResponse};
+use std::{
+    fs::File,
+    io::Write,
+    sync::{Arc, RwLock},
+    future::Future,
+};
 
 // Process a request and handle the response stream within an async context
-pub(crate) async fn process_request(
-    request_future: impl std::future::Future<Output = reqwest::Result<reqwest::Response>>,
-    progress_info: Arc<RwLock<super::RequestProgress>>,
-    file_path_str: Option<String>,
+pub async fn process_request(
+    request_future: impl Future<Output = reqwest::Result<ReqwestResponse>>,
+    progress_info: Arc<RwLock<RequestProgress>>,
+    output_file_path: Option<String>,
 ) {
-    // Check if the request is already cancelled before we start
-    if progress_info.read().unwrap().status == RequestStatus::Cancelled {
-        return;
-    }
+    match request_future.await {
+        Ok(response) => {
+            // Get the status code and headers before consuming the response
+            let status = response.status();
+            let headers = response.headers().clone();
 
-    let mut file = if let Some(path) = &file_path_str {
-        match std::fs::File::create(path) {
-            Ok(f) => Some(f),
-            Err(e) => {
-                let mut progress = progress_info.write().unwrap();
-                progress.status = RequestStatus::Error;
-                let response = Response {
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                    headers: HeaderMap::new(),
-                    body: Err(format!("Failed to create file: {}", e)),
-                };
-                progress.final_response = Some(response);
-                return;
-            }
-        }
-    } else {
-        None
-    };
+            // Check if we're streaming to a file
+            if let Some(file_path) = output_file_path {
+                // Open the file for writing
+                match File::create(&file_path) {
+                    Ok(mut file) => {
+                        // Get the content length if available
+                        let content_length = response
+                            .headers()
+                            .get(reqwest::header::CONTENT_LENGTH)
+                            .and_then(|v| v.to_str().ok())
+                            .and_then(|s| s.parse::<u64>().ok());
 
-    // Race between the request future and a check for cancellation
-    let result = tokio::select! {
-        result = request_future => result,
-        _ = async {
-            loop {
-                // Check if the request has been cancelled
-                if progress_info.read().unwrap().status == RequestStatus::Cancelled {
-                    break;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-            }
-        } => {
-            // The request was cancelled, so we return a cancellation response
-            let mut progress = progress_info.write().unwrap();
-            if progress.status == RequestStatus::Cancelled {
-                // Already marked as cancelled, nothing to do
-                return;
-            }
-            progress.status = RequestStatus::Cancelled;
-            let response = Response {
-                status: StatusCode::REQUEST_TIMEOUT,
-                headers: HeaderMap::new(),
-                body: Err("Request cancelled".to_string()),
-            };
-            progress.final_response = Some(response);
-            return;
-        }
-    };
-
-    match result {
-        Ok(mut resp) => {
-            // Check once more for cancellation after we get the response
-            if progress_info.read().unwrap().status == RequestStatus::Cancelled {
-                return;
-            }
-
-            let status = resp.status();
-            let headers = resp.headers().clone();
-            let total_size = resp.content_length();
-            {
-                let mut progress = progress_info.write().unwrap();
-                progress.total_bytes = total_size;
-            }
-
-            let mut received_data = if file.is_none() {
-                Some(Vec::with_capacity(total_size.unwrap_or(0) as usize))
-            } else {
-                None
-            };
-
-            loop {
-                // Check for cancellation before processing each chunk
-                if progress_info.read().unwrap().status == RequestStatus::Cancelled {
-                    return;
-                }
-
-                match resp.chunk().await {
-                    Ok(Some(chunk)) => {
-                        // Check again for cancellation
-                        if progress_info.read().unwrap().status == RequestStatus::Cancelled {
-                            return;
-                        }
-
-                        if let Some(f) = &mut file {
-                            if let Err(e) = std::io::Write::write_all(f, &chunk) {
-                                let mut progress = progress_info.write().unwrap();
-                                progress.status = RequestStatus::Error;
-                                let response = Response {
-                                    status,
-                                    headers,
-                                    body: Err(format!("Error writing to file: {}", e)),
-                                };
-                                progress.final_response = Some(response);
-                                break;
-                            }
-                        } else if let Some(data) = &mut received_data {
-                            data.extend_from_slice(&chunk);
-                        }
-
-                        {
+                        // Update the progress info with the total size
+                        if let Some(total) = content_length {
                             let mut progress = progress_info.write().unwrap();
-                            if progress.status == RequestStatus::InProgress {
-                                progress.received_bytes += chunk.len() as u64;
+                            progress.total_bytes = Some(total);
+                        }
+
+                        // Stream the body to the file
+                        let mut stream = response.bytes_stream();
+                        let mut received_bytes: u64 = 0;
+
+                        use futures_util::StreamExt;
+                        while let Some(chunk_result) = stream.next().await {
+                            match chunk_result {
+                                Ok(chunk) => {
+                                    // Write the chunk to the file
+                                    if let Err(e) = file.write_all(&chunk) {
+                                        // File write error
+                                        let mut progress = progress_info.write().unwrap();
+                                        progress.status = RequestStatus::Error;
+                                        progress.final_response = Some(Response {
+                                            status,
+                                            headers,
+                                            body: Err(format!("File write error: {}", e)),
+                                        });
+                                        return;
+                                    }
+
+                                    // Update received bytes
+                                    received_bytes += chunk.len() as u64;
+                                    let mut progress = progress_info.write().unwrap();
+                                    progress.received_bytes = received_bytes;
+                                }
+                                Err(e) => {
+                                    // Network error
+                                    let mut progress = progress_info.write().unwrap();
+                                    progress.status = RequestStatus::Error;
+                                    progress.final_response = Some(Response {
+                                        status,
+                                        headers,
+                                        body: Err(format!("Network error: {}", e)),
+                                    });
+                                    return;
+                                }
                             }
                         }
-                    }
-                    Ok(None) => {
+
+                        // Successfully completed
                         let mut progress = progress_info.write().unwrap();
-                        if progress.status == RequestStatus::InProgress {
-                            progress.status = RequestStatus::Completed;
-                            let response = Response {
-                                status,
-                                headers,
-                                body: Ok(received_data.unwrap_or_default()),
-                            };
-                            progress.final_response = Some(response);
-                        }
-                        break;
-                    }
-                    Err(e) => {
-                        let mut progress = progress_info.write().unwrap();
-                        progress.status = RequestStatus::Error;
-                        let response = Response {
+                        progress.status = RequestStatus::Completed;
+                        progress.final_response = Some(Response {
                             status,
                             headers,
-                            body: Err(format!("Error reading response: {}", e)),
-                        };
-                        progress.final_response = Some(response);
-                        break;
+                            body: Ok(Vec::new()), // Empty body since it was streamed to file
+                        });
+                    }
+                    Err(e) => {
+                        // File open error
+                        let mut progress = progress_info.write().unwrap();
+                        progress.status = RequestStatus::Error;
+                        progress.final_response = Some(Response {
+                            status,
+                            headers,
+                            body: Err(format!("File open error: {}", e)),
+                        });
+                    }
+                }
+            } else {
+                // Not streaming to a file, collect the whole body
+                match response.bytes().await {
+                    Ok(bytes) => {
+                        let bytes_vec = bytes.to_vec();
+                        let bytes_len = bytes_vec.len() as u64;
+
+                        // Update progress
+                        let mut progress = progress_info.write().unwrap();
+                        progress.status = RequestStatus::Completed;
+                        progress.received_bytes = bytes_len;
+                        progress.total_bytes = Some(bytes_len);
+                        progress.final_response = Some(Response {
+                            status,
+                            headers,
+                            body: Ok(bytes_vec),
+                        });
+                    }
+                    Err(e) => {
+                        // Body read error
+                        let mut progress = progress_info.write().unwrap();
+                        progress.status = RequestStatus::Error;
+                        progress.final_response = Some(Response {
+                            status,
+                            headers,
+                            body: Err(format!("Body read error: {}", e)),
+                        });
                     }
                 }
             }
         }
         Err(e) => {
-            // Check if it was cancelled
-            if progress_info.read().unwrap().status == RequestStatus::Cancelled {
-                return;
-            }
-
+            // Request error (connection failed, etc.)
             let mut progress = progress_info.write().unwrap();
             progress.status = RequestStatus::Error;
-            let response = Response {
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-                headers: HeaderMap::new(),
-                body: Err(format!("Error sending request: {}", e)),
-            };
-            progress.final_response = Some(response);
+            progress.final_response = Some(Response {
+                status: reqwest::StatusCode::BAD_REQUEST, // Default status code for errors
+                headers: reqwest::header::HeaderMap::new(),
+                body: Err(format!("Request error: {}", e)),
+            });
         }
     }
 }

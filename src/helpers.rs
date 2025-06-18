@@ -1,29 +1,27 @@
-use reqwest::tls;
-use crate::types::{TLS_VERSION_1_2, TLS_VERSION_1_3};
+use reqwest::{Method, tls::Version};
+use crate::types::*;
 
-/// Helper function to convert version integer to reqwest::tls::Version
-pub fn convert_tls_version(version: u8) -> Option<tls::Version> {
-    match version {
-        TLS_VERSION_1_2 => Some(tls::Version::TLS_1_2),
-        TLS_VERSION_1_3 => Some(tls::Version::TLS_1_3),
+/// Convert a method integer to a reqwest::Method
+pub fn convert_method(method: u8) -> Option<Method> {
+    match method {
+        HTTP_METHOD_GET => Some(Method::GET),
+        HTTP_METHOD_POST => Some(Method::POST),
+        HTTP_METHOD_PUT => Some(Method::PUT),
+        HTTP_METHOD_DELETE => Some(Method::DELETE),
+        HTTP_METHOD_HEAD => Some(Method::HEAD),
+        HTTP_METHOD_OPTIONS => Some(Method::OPTIONS),
+        HTTP_METHOD_PATCH => Some(Method::PATCH),
         _ => None,
     }
 }
 
-/// Helper function to convert method integer to reqwest::Method
-pub fn convert_method(method: u8) -> Option<reqwest::Method> {
-    use crate::types::*;
-    
-    match method {
-        HTTP_METHOD_GET => Some(reqwest::Method::GET),
-        HTTP_METHOD_POST => Some(reqwest::Method::POST),
-        HTTP_METHOD_PUT => Some(reqwest::Method::PUT),
-        HTTP_METHOD_DELETE => Some(reqwest::Method::DELETE),
-        HTTP_METHOD_HEAD => Some(reqwest::Method::HEAD),
-        HTTP_METHOD_OPTIONS => Some(reqwest::Method::OPTIONS),
-        HTTP_METHOD_CONNECT => Some(reqwest::Method::CONNECT),
-        HTTP_METHOD_PATCH => Some(reqwest::Method::PATCH),
-        HTTP_METHOD_TRACE => Some(reqwest::Method::TRACE),
+/// Convert a TLS version integer to a reqwest::tls::Version
+pub fn convert_tls_version(version: u8) -> Option<Version> {
+    match version {
+        TLS_VERSION_1_0 => Some(Version::TLS_1_0),
+        TLS_VERSION_1_1 => Some(Version::TLS_1_1),
+        TLS_VERSION_1_2 => Some(Version::TLS_1_2),
+        TLS_VERSION_1_3 => Some(Version::TLS_1_3),
         _ => None,
     }
 } 
