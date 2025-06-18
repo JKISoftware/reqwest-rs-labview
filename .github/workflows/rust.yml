@@ -81,6 +81,7 @@ jobs:
     - name: Build Linux
       if: ${{ runner.os == 'Linux' }}
       run: |
+        pip3 install ziglang
         cargo install --locked cargo-zigbuild
         rustup target add ${{ matrix.target }}
         cargo zigbuild --target=${{ matrix.target }} --verbose --${{ env.BUILD_TYPE }}
