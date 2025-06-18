@@ -89,7 +89,7 @@ jobs:
       if: ${{ runner.os != 'Linux' }}
       run: |
         rustup target add ${{ matrix.target }}
-        cargo build --target=${{ matrix.target }} --verbose --${{ 
+        cargo build --target=${{ matrix.target }} --verbose --${{ env.BUILD_TYPE }}
         
     - name: Rename shared library
       shell: bash
