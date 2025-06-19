@@ -5,8 +5,20 @@ A LabVIEW HTTP client that calls a DLL-wrapper around the [reqwest](https://crat
 It (`reqwest-rs-labview`) was originally built to meet the following requirements:
 
 - **Asynchronous & Fast** - library supports concurrent downloads/requests to happen in parallel and should be performant
-- **Cross-platform** - library can compile/run on all platform supported by LabVIEW
+- **Cross-platform** - library can compile/run on all platform supported by LabVIEW, including NI Linux RT (tested on RT PXI and cRIO x64)
 - **Maintainable** - engineers using the LabVIEW code with some text-based programming experience should be able to understand and maintain the DLL codebase.
+
+## Using this Library
+
+**Clone/Download the Repo (no VI Package yet)**
+
+Right now, there is no VI Package for installing the library, so you will need to clone/download this repo into your project -- it's being used successfully on some internal JKI projects and is added to the project as a git submodule.
+
+The examples and everything should run "out of the box" after cloning this repo, since the built shared libraries are included along-side the LabVIEW project -- there are 32-bit and 64-bit DLLs for Windows and a 64-bit DLL for Linux.
+
+**Using LabVIEW RT? Copy the .so onto the RT target**
+
+Note that if you're using **LabVIEW RT** on an RT PXI or cRIO you will need to copy the `lv_reqwest_64.so` file into the `/usr/lib64/` directory on your RT target using an sftp or other file transfer tool.
 
 ## Design Strategy
 
