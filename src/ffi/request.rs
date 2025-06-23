@@ -4,6 +4,7 @@ use crate::{
 };
 use libc::c_char;
 use std::ptr;
+use labview_interop::types::{LStrHandle, LVArrayHandle};
 
 /// Check if a request is complete
 #[unsafe(no_mangle)]
@@ -75,11 +76,8 @@ pub extern "C" fn request_read_received_bytes(request_id: RequestId) -> u64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn request_read_response_body(
     request_id: RequestId,
-    num_bytes: *mut u32,
-) -> *mut c_char {
-    if num_bytes.is_null() {
-        return ptr::null_mut();
-    }
+    mut body_to_lv: LVArrayHandle<1, u8>,
+)  {
 
     // Get the response info directly from the tracker
     let tracker = REQUEST_TRACKER.lock().unwrap();
@@ -87,37 +85,22 @@ pub extern "C" fn request_read_response_body(
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
         if let Some(ref response) = progress.final_response {
-            // If there's an error in the response, return null
+            // If there's an error in the response, return null,
+            // return empty?
             let body = match &response.body {
                 Ok(body_bytes) => body_bytes,
                 Err(_) => {
-                    unsafe { *num_bytes = 0 };
-                    return ptr::null_mut();
+                   body_to_lv.resize_array([0].into()).unwrap();
+                    return;
                 }
             };
+            body_to_lv.resize_array([body.len() as i32].into()).unwrap();
+            // Copy the body bytes into the LVArrayHandle
+            body_to_lv.data_as_slice_mut().copy_from_slice(body);
 
-            // Calculate size including null terminator
-            let body_len = body.len();
-            unsafe { *num_bytes = body_len as u32 };
-
-            // Allocate memory for the string + null terminator
-            let c_str_ptr = unsafe { libc::malloc(body_len + 1) as *mut c_char };
-            if c_str_ptr.is_null() {
-                return ptr::null_mut();
-            }
-
-            // Copy the bytes and add null terminator
-            unsafe {
-                std::ptr::copy_nonoverlapping(body.as_ptr(), c_str_ptr as *mut u8, body_len);
-                *(c_str_ptr.add(body_len)) = 0;
-            }
-
-            return c_str_ptr;
         }
     }
-
-    unsafe { *num_bytes = 0 };
-    ptr::null_mut() // Return null if request not found or no response yet
+    // TODO: hand case when status dissallows a response body
 }
 
 /// Get the error message as a C string directly from a request ID
