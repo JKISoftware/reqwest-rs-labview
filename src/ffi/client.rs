@@ -24,7 +24,7 @@ pub extern "C" fn client_builder_create_client_and_start(builder_ptr: *mut Clien
         Ok(client) => {
             // On success, the caller is still responsible for destroying the builder.
             let client_wrapper = ClientWrapper(client);
-            let client_id = NEXT_CLIENT_ID.fetch_add(1, Ordering::SeqCst) as ClientId;
+            let client_id = NEXT_CLIENT_ID.fetch_add(1, Ordering::SeqCst);
 
             let mut clients = CLIENTS.lock().unwrap();
             clients.insert(client_id, client_wrapper);

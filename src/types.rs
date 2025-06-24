@@ -5,8 +5,8 @@ use reqwest::{
 use std::sync::{Arc, RwLock};
 
 /// Type aliases for IDs
-pub type ClientId = u64;
-pub type RequestId = u64;
+pub type ClientId = usize;
+pub type RequestId = usize;
 pub type ProgressInfo = Arc<RwLock<RequestProgress>>;
 
 /// Wrapper for HeaderMap to make it FFI-compatible

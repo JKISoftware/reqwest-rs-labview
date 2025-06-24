@@ -9,7 +9,7 @@ lazy_static::lazy_static! {
     pub static ref REQUEST_TRACKER: Mutex<HashMap<RequestId, ProgressInfo>> = Mutex::new(HashMap::new());
     pub static ref NEXT_REQUEST_ID: Mutex<RequestId> = Mutex::new(1);
     pub static ref CLIENTS: Mutex<HashMap<ClientId, ClientWrapper>> = Mutex::new(HashMap::new());
-    pub static ref NEXT_CLIENT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    pub static ref NEXT_CLIENT_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
     pub static ref CLIENT_REQUESTS: Mutex<HashMap<ClientId, HashSet<RequestId>>> = Mutex::new(HashMap::new());
     pub static ref GLOBAL_RUNTIME: tokio::runtime::Runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
