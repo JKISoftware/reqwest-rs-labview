@@ -178,7 +178,7 @@
 				<Item Name="Parse State Queue__jki_lib_state_machine.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/State Machine/_JKI_lib_State_Machine.llb/Parse State Queue__jki_lib_state_machine.vi"/>
 			</Item>
 			<Item Name="start_get_request.vi" Type="VI" URL="../Client/start_get_request.vi"/>
-			<Item Name="lv_reqwest_64.dll" Type="Document" URL="../lv_reqwest_64.dll"/>
+			<Item Name="lv_reqwest_32.dll" Type="Document" URL="../lv_reqwest_32.dll"/>
 		</Item>
 		<Item Name="Build Specifications" Type="Build"/>
 	</Item>
