@@ -20,7 +20,7 @@ pub mod constants {
 }
 
 // Helper function to wait for request completion with retry for 5xx errors
-pub fn wait_for_request_with_retry(request_id: u64, max_retries: u64) -> (u16, Option<String>) {
+pub fn wait_for_request_with_retry(request_id: usize, max_retries: u64) -> (u16, Option<String>) {
     for attempt in 0..=max_retries {
         // Wait for the request to complete
         while !request_is_complete(request_id) {
