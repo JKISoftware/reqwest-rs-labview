@@ -388,6 +388,31 @@ pub extern "C" fn request_builder_json(
     builder_wrapper.with_builder(|b| b.json(&json_value))
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn request_builder_body_binary(
+    builder_ptr: *mut RequestBuilderWrapper,
+    data: *const u8,
+    data_len: usize,
+) -> bool {
+    if builder_ptr.is_null() || data.is_null() {
+        return false;
+    }
+    
+    let builder_wrapper = unsafe { &mut *builder_ptr };
+    
+    // Validate data length
+    if data_len == 0 {
+        builder_wrapper.error_message = Some("Binary data length cannot be zero".to_string());
+        return false;
+    }
+    
+    let binary_data = unsafe {
+        std::slice::from_raw_parts(data, data_len).to_vec()
+    };
+    
+    builder_wrapper.with_builder(|b| b.body(binary_data))
+}
+
 /// Set a form parameter
 #[unsafe(no_mangle)]
 pub extern "C" fn request_builder_form(
