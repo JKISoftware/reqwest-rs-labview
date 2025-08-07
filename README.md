@@ -20,6 +20,12 @@ The examples and everything should run "out of the box" after cloning this repo,
 
 Note that if you're using **LabVIEW RT** on an RT PXI or cRIO you will need to copy the `lv_reqwest_64.so` file into the `/usr/lib64/` directory on your RT target using an sftp or other file transfer tool.
 
+**On a Mac? Unzip the `.framework`**
+
+Extract the `lv_src/lv_reqwest_64.framework.zip` archive so that the `lv_src/lv_reqwest_64.framework` bundle is right next to the other shared libraries (.so and .dll files). This is the shared library needed by LabVIEW on macOSl.
+
+Or, you can build the shared library yourself -- all you need is to [install rust](https://www.rust-lang.org/tools/install) if you don't already have it, then run the `./mac_build.sh` script, which will create the `lv_src/lv_reqwest_64.framework` file and you're ready to go.
+
 ## Design Strategy
 
 - **Thin DLL Wrapper** - Expose the reqwest API via a thin wrapper DLL (keep complexity out of the DLL, as much as possible, unless it's critical for achieving **asynchronous** and **fast**)
