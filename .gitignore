@@ -12,3 +12,6 @@ target/
 *.lvlps
 *.aliases
 *.framework/
+
+# macOS metadata files
+.DS_Store
