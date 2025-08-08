@@ -1,16 +1,14 @@
 use crate::{
-    globals::{CLIENT_REQUESTS, CLIENTS, GLOBAL_RUNTIME, NEXT_CLIENT_ID, client_cancel_requests},
+    globals::{client_cancel_requests, CLIENTS, CLIENT_REQUESTS, GLOBAL_RUNTIME, NEXT_CLIENT_ID},
     helpers::convert_method,
     types::{ClientBuilderWrapper, ClientId, ClientWrapper, RequestBuilderWrapper},
 };
 use libc::c_char;
-use std::{collections::HashSet, ffi::CStr, ptr, sync::atomic::Ordering, time::Duration};
+use std::{ffi::CStr, collections::HashSet, ptr, sync::atomic::Ordering, time::Duration};
 
 /// Build the client from the builder
 #[unsafe(no_mangle)]
-pub extern "C" fn client_builder_create_client_and_start(
-    builder_ptr: *mut ClientBuilderWrapper,
-) -> ClientId {
+pub extern "C" fn client_builder_create_client_and_start(builder_ptr: *mut ClientBuilderWrapper) -> ClientId {
     if builder_ptr.is_null() {
         return 0;
     }
@@ -20,8 +18,7 @@ pub extern "C" fn client_builder_create_client_and_start(
 
     // Take the internal builder for building.
     // We need to replace it with a default one because `build()` consumes it.
-    let builder_to_build =
-        std::mem::replace(&mut builder_wrapper.builder, reqwest::Client::builder());
+    let builder_to_build = std::mem::replace(&mut builder_wrapper.builder, reqwest::Client::builder());
 
     match builder_to_build.build() {
         Ok(client) => {
@@ -119,4 +116,4 @@ pub extern "C" fn client_create_request_builder(
 #[unsafe(no_mangle)]
 pub extern "C" fn client_cancel_all_requests(client_id: ClientId) {
     client_cancel_requests(client_id);
-}
+} 

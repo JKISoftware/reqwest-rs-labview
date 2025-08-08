@@ -1,5 +1,5 @@
-use crate::integration::common::{constants::*, wait_for_request_with_retry};
 use reqwest_dll::*;
+use crate::integration::common::{constants::*, wait_for_request_with_retry};
 use std::time::Duration;
 
 #[test]
@@ -13,8 +13,7 @@ fn test_request_builder_with_json() {
     let url = std::ffi::CString::new("https://httpbin.org/post").unwrap();
 
     // Create a POST request builder
-    let request_builder_ptr =
-        client_create_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
+    let request_builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
     assert!(!request_builder_ptr.is_null());
 
     // Add JSON body
@@ -152,8 +151,7 @@ fn test_request_builder_query_params() {
             std::thread::sleep(Duration::from_millis(backoff_ms));
 
             // Create a new request
-            let builder_ptr =
-                client_create_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
+            let builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
             assert!(request_builder_query(
                 builder_ptr,
                 key.as_ptr(),
@@ -251,8 +249,7 @@ fn test_request_builder_auth() {
             std::thread::sleep(Duration::from_millis(backoff_ms));
 
             // Create a new request
-            let builder_ptr =
-                client_create_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
+            let builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
             assert!(request_builder_basic_auth(
                 builder_ptr,
                 username.as_ptr(),
@@ -340,8 +337,7 @@ fn test_request_builder_form_data() {
             std::thread::sleep(Duration::from_millis(backoff_ms));
 
             // Create a new request
-            let builder_ptr =
-                client_create_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
+            let builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
             assert!(request_builder_form(
                 builder_ptr,
                 key.as_ptr(),
@@ -383,4 +379,4 @@ fn test_request_builder_form_data() {
     request_destroy(request_id);
     client_builder_destroy(client_builder_ptr);
     client_destroy(client_id);
-}
+} 

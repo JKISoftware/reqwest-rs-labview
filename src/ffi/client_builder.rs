@@ -319,4 +319,4 @@ pub extern "C" fn client_builder_user_agent(
     // The error is stored inside the builder and will be returned by `build()`.
     unsafe { &mut *builder_ptr }.builder = builder.user_agent(user_agent_str);
     true
-}
+} 

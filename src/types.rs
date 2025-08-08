@@ -1,4 +1,7 @@
-use reqwest::{Client, RequestBuilder, StatusCode, header::HeaderMap};
+use reqwest::{
+    header::HeaderMap,
+    Client, RequestBuilder, StatusCode,
+};
 use std::sync::{Arc, RwLock};
 
 /// Type aliases for IDs
@@ -85,4 +88,4 @@ pub const HTTP_METHOD_PATCH: u8 = 7;
 pub const TLS_VERSION_1_0: u8 = 1;
 pub const TLS_VERSION_1_1: u8 = 2;
 pub const TLS_VERSION_1_2: u8 = 3;
-pub const TLS_VERSION_1_3: u8 = 4;
+pub const TLS_VERSION_1_3: u8 = 4; 

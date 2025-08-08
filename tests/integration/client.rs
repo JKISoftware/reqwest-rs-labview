@@ -1,5 +1,5 @@
-use crate::integration::common::{constants::*, wait_for_request_with_retry};
 use reqwest_dll::*;
+use crate::integration::common::{constants::*, wait_for_request_with_retry};
 use std::time::Duration;
 
 #[test]
@@ -20,8 +20,7 @@ fn test_request_builder_api() {
     let url = std::ffi::CString::new("https://httpbin.org/get").unwrap();
 
     // Create a request builder with GET method
-    let request_builder_ptr =
-        client_create_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
+    let request_builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_GET, url.as_ptr());
     assert!(!request_builder_ptr.is_null());
 
     // Set a request-specific timeout (overrides client timeout)
@@ -110,4 +109,4 @@ fn test_request_builder_api() {
     string_destroy(body_ptr);
     request_destroy(request_id);
     client_destroy(client_id);
-}
+} 

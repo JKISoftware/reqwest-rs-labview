@@ -11,4 +11,4 @@ pub extern "C" fn string_destroy(s: *mut c_char) {
     unsafe {
         libc::free(s as *mut c_void);
     };
-}
+} 

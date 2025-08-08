@@ -1,14 +1,9 @@
 use crate::{
-    globals::{GLOBAL_RUNTIME, client_register_request, request_builder_create_request_id},
+    globals::{client_register_request, request_builder_create_request_id, GLOBAL_RUNTIME},
     types::{HeaderMapWrapper, RequestBuilderWrapper, RequestId, RequestStatus},
 };
 use libc::c_char;
-use std::{
-    ffi::CStr,
-    ptr,
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::{ffi::CStr, ptr, sync::{Arc, RwLock}, time::Duration};
 
 /// Destroy a request builder without sending
 #[unsafe(no_mangle)]
@@ -100,7 +95,8 @@ pub extern "C" fn request_builder_set_output_file(
     let file_path_str = match unsafe { CStr::from_ptr(file_path).to_str() } {
         Ok(s) => s,
         Err(_) => {
-            builder_wrapper.error_message = Some("File path contains invalid UTF-8".to_string());
+            builder_wrapper.error_message =
+                Some("File path contains invalid UTF-8".to_string());
             return false;
         }
     };
@@ -172,8 +168,7 @@ pub extern "C" fn request_builder_create_request_and_send(
     GLOBAL_RUNTIME.spawn(async move {
         // Get the future within the Tokio context
         let request_future = request_builder.send();
-        crate::async_support::process_request(request_future, progress_info, output_file_path)
-            .await;
+        crate::async_support::process_request(request_future, progress_info, output_file_path).await;
     });
 
     request_id
@@ -304,7 +299,8 @@ pub extern "C" fn request_builder_basic_auth(
         match CStr::from_ptr(username).to_str() {
             Ok(s) => s,
             Err(_) => {
-                builder_wrapper.error_message = Some("Username contains invalid UTF-8".to_string());
+                builder_wrapper.error_message =
+                    Some("Username contains invalid UTF-8".to_string());
                 return false;
             }
         }
@@ -314,7 +310,8 @@ pub extern "C" fn request_builder_basic_auth(
         match unsafe { CStr::from_ptr(password).to_str() } {
             Ok(s) => Some(s),
             Err(_) => {
-                builder_wrapper.error_message = Some("Password contains invalid UTF-8".to_string());
+                builder_wrapper.error_message =
+                    Some("Password contains invalid UTF-8".to_string());
                 return false;
             }
         }
@@ -478,4 +475,4 @@ pub extern "C" fn request_builder_read_error_message(
         unsafe { *num_bytes = 0 };
         ptr::null_mut() // Return null if no error message
     }
-}
+} 

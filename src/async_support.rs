@@ -1,10 +1,10 @@
-use crate::types::{RequestProgress, RequestStatus, Response};
-use reqwest::Response as ReqwestResponse;
+use crate::types::{RequestStatus, Response, RequestProgress};
+use reqwest::{Response as ReqwestResponse};
 use std::{
     fs::File,
-    future::Future,
     io::Write,
     sync::{Arc, RwLock},
+    future::Future,
 };
 
 // Process a request and handle the response stream within an async context

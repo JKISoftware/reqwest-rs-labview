@@ -1,14 +1,15 @@
 use crate::types::HeaderMapWrapper;
 use libc::c_char;
 use reqwest::header::{HeaderName, HeaderValue};
-use std::{ffi::CStr, ptr};
+use std::{
+    ffi::CStr,
+    ptr,
+};
 
 /// Create a new header map
 #[unsafe(no_mangle)]
 pub extern "C" fn headers_create() -> *mut HeaderMapWrapper {
-    Box::into_raw(Box::new(
-        HeaderMapWrapper(reqwest::header::HeaderMap::new()),
-    ))
+    Box::into_raw(Box::new(HeaderMapWrapper(reqwest::header::HeaderMap::new())))
 }
 
 /// Destroy a header map
@@ -86,4 +87,4 @@ pub extern "C" fn headers_add(
         },
         Err(_) => false,
     }
-}
+} 

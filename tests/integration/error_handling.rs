@@ -1,5 +1,5 @@
-use crate::integration::common::constants::*;
 use reqwest_dll::*;
+use crate::integration::common::constants::*;
 use std::time::Duration;
 
 #[test]
@@ -139,4 +139,4 @@ fn test_error_handling_404_not_found() {
     // Cleanup
     request_destroy(request_id);
     client_destroy(client_id);
-}
+} 
