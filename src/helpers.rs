@@ -1,5 +1,5 @@
-use reqwest::{Method, tls::Version};
 use crate::types::*;
+use reqwest::{Method, tls::Version};
 
 /// Convert a method integer to a reqwest::Method
 pub fn convert_method(method: u8) -> Option<Method> {
@@ -24,4 +24,4 @@ pub fn convert_tls_version(version: u8) -> Option<Version> {
         TLS_VERSION_1_3 => Some(Version::TLS_1_3),
         _ => None,
     }
-} 
+}

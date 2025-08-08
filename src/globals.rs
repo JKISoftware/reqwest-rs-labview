@@ -1,8 +1,8 @@
+use crate::types::{ClientId, ClientWrapper, ProgressInfo, RequestId, RequestStatus};
 use std::{
     collections::{HashMap, HashSet},
     sync::Mutex,
 };
-use crate::types::{ClientWrapper, ProgressInfo, RequestId, ClientId, RequestStatus};
 
 // Global runtime and request tracker
 lazy_static::lazy_static! {
@@ -50,4 +50,4 @@ pub fn client_cancel_requests(client_id: ClientId) {
             }
         }
     }
-} 
+}

@@ -72,4 +72,4 @@ pub fn wait_for_request_with_retry(request_id: usize, max_retries: u64) -> (u16,
 
     // This should never happen due to the loop structure, but for completeness
     (0, Some("Retry logic error".to_string()))
-} 
+}
