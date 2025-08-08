@@ -1,9 +1,0 @@
-# Configuration for clippy in FFI-heavy code
-# 
-# Clippy lint configuration is now defined in Cargo.toml under [lints.clippy]
-# This ensures developers running clippy locally get the same behavior as CI.
-#
-# The configuration enables all clippy warnings but allows patterns necessary for FFI:
-# - clippy::not_unsafe_ptr_arg_deref: FFI functions often need to dereference raw pointers
-# - clippy::unwrap_used: Panics in FFI code are acceptable in some cases  
-# - clippy::expect_used: Critical operations may use expect() for error handling
