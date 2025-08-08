@@ -2,6 +2,8 @@
 
 A comprehensive LabVIEW HTTP client library built around the production-quality [reqwest](https://crates.io/crates/reqwest) Rust library (the most popular high-level HTTP client library for Rust). The LabVIEW bindings are currently being stabilized and have been successfully used in multiple JKI projects.
 
+[![CI Checks and Build](https://github.com/JKISoftware/reqwest-rs-labview/actions/workflows/rust.yml/badge.svg)](https://github.com/JKISoftware/reqwest-rs-labview/actions/workflows/rust.yml)
+
 ## Key Features
 
 - **✅ Mature & Stable** - Built on the production-quality reqwest Rust library with LabVIEW bindings that are being stabilized
