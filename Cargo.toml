@@ -6,6 +6,15 @@ edition = "2024"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+# Clippy configuration for FFI-heavy code
+[lints.clippy]
+# Allow patterns necessary for FFI code (higher priority overrides)
+not_unsafe_ptr_arg_deref = { level = "allow", priority = 1 }  # Pointer dereferencing in FFI functions
+unwrap_used = { level = "allow", priority = 1 }               # unwrap() acceptable in FFI code where panics are OK
+expect_used = { level = "allow", priority = 1 }               # expect() for critical operations
+# Enable all clippy warnings by default (lower priority)
+all = { level = "warn", priority = 0 }
+
 [dependencies]
 libc = "0.2.173"
 reqwest = { version = "0.12.20", features = ["json", "stream", "rustls-tls"], default-features = false }

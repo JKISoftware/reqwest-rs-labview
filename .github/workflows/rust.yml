@@ -124,7 +124,7 @@ jobs:
       run: cargo fmt -- --check
       
     - name: Run clippy
-      run: cargo clippy -- -W clippy::all -A clippy::not-unsafe-ptr-arg-deref -A clippy::unwrap-used -A clippy::expect-used
+      run: cargo clippy
       
     - name: Run tests
       run: cargo test --verbose
