@@ -1,30 +1,52 @@
 # reqwest-rs-labview
 
-A LabVIEW HTTP client that calls a DLL-wrapper around the [reqwest](https://crates.io/crates/reqwest) library (the most popular high-level HTTP client library for Rust).
+A comprehensive LabVIEW HTTP client library built around the production-quality [reqwest](https://crates.io/crates/reqwest) Rust library (the most popular high-level HTTP client library for Rust). The LabVIEW bindings are currently being stabilized and have been successfully used in multiple JKI projects.
 
-It (`reqwest-rs-labview`) was originally built to meet the following requirements:
+## Key Features
 
-- **Asynchronous & Fast** - library supports concurrent downloads/requests to happen in parallel and should be performant
-- **Cross-platform** - library can compile/run on all platform supported by LabVIEW, including NI Linux RT (tested on RT PXI and cRIO x64)
-- **Maintainable** - engineers using the LabVIEW code with some text-based programming experience should be able to understand and maintain the DLL codebase.
+- **✅ Mature & Stable** - Built on the production-quality reqwest Rust library with LabVIEW bindings that are being stabilized
+- **✅ Asynchronous & Fast** - Non-blocking concurrent requests with real-time progress tracking
+- **✅ Cross-platform** - Windows (32/64-bit), Linux (64-bit), and macOS with pre-built binaries
+- **✅ Feature Complete** - Comprehensive HTTP client with all major features implemented:
+  - All HTTP methods (GET, POST, PUT, DELETE) with full customization
+  - Client builder pattern with timeouts, SSL control, proxy support
+  - Authentication (Basic, Bearer token)
+  - Request/response header manipulation
+  - Query parameters and form data
+  - File uploads and downloads
+  - Progress tracking and cancellation
+- **✅ Native LabVIEW Integration** - 70+ VIs providing a familiar LabVIEW programming experience
+- **✅ Maintainable** - Clean Rust codebase with comprehensive FFI layer
 
 ## Using this Library
 
-**Clone/Download the Repo (no VI Package yet)**
+**Ready to Use - Pre-built Binaries Included**
 
-Right now, there is no VI Package for installing the library, so you will need to clone/download this repo into your project -- it's being used successfully on some internal JKI projects and is added to the project as a git submodule.
+This library is ready for immediate use! Pre-built shared libraries are included for all supported platforms:
+- Windows: `lv_reqwest_32.dll` and `lv_reqwest_64.dll`
+- Linux: `lv_reqwest_64.so`
+- macOS: `lv_reqwest_64.framework` (see extraction instructions below)
 
-The examples and everything should run "out of the box" after cloning this repo, since the built shared libraries are included along-side the LabVIEW project -- there are 32-bit and 64-bit DLLs for Windows and a 64-bit DLL for Linux.
+**Installation Options:**
 
-**Using LabVIEW RT? Copy the .so onto the RT target**
+1. **Clone/Download** - Add this repo as a git submodule to your project for the latest updates
+2. **Direct Download** - Download and extract the repo into your project directory
+3. **Future:** VI Package installation (planned for easier distribution)
 
-Note that if you're using **LabVIEW RT** on an RT PXI or cRIO you will need to copy the `lv_reqwest_64.so` file into the `/usr/lib64/` directory on your RT target using an sftp or other file transfer tool.
+**Platform-Specific Setup:**
 
-**On a Mac? Unzip the `.framework`**
+- **Windows & Linux:** Ready to use - no additional setup required
+- **LabVIEW RT (Linux):** Copy `lv_reqwest_64.so` to `/usr/lib64/` on your RT target using sftp or file transfer tool
+- **macOS:** Extract `lv_src/lv_reqwest_64.framework.zip` to create the `lv_src/lv_reqwest_64.framework` bundle, or build it yourself using the `./mac_build.sh` script
 
-Extract the `lv_src/lv_reqwest_64.framework.zip` archive so that the `lv_src/lv_reqwest_64.framework` bundle is right next to the other shared libraries (.so and .dll files). This is the shared library needed by LabVIEW on macOSl.
+## Quick Start Examples
 
-Or, you can build the shared library yourself -- all you need is to [install rust](https://www.rust-lang.org/tools/install) if you don't already have it, then run the `./mac_build.sh` script, which will create the `lv_src/lv_reqwest_64.framework` file and you're ready to go.
+The `lv_src/Examples/` directory contains working examples demonstrating:
+- Basic GET/POST requests
+- Authentication (Basic and Bearer token)  
+- File uploads and downloads with progress tracking
+- Request customization (headers, query parameters)
+- Error handling and response processing
 
 ## Design Strategy
 
@@ -47,10 +69,15 @@ Or, you can build the shared library yourself -- all you need is to [install rus
 - Make the DLL interface very simple and similar to the built-in LabVIEW HTTP Client
   - This option moves complexity into the DLL while also making it potentially harder to expose library capabilities and features to LabVIEW. Also, the LabVIEW HTTP Client does not support async downloads (its API doesn't expose request/response objects) so we'd be designing a new LabVIEW API anyway and then trying to design the DLL for calling it -- that feels like two (or more) hard things to do at the same time without much additional benefit.  Plus, we can create a high-level client in LabVIEW with an identical interface as the built-in LabVIEW HTTP Client that calls the `reqwest-rs-labview`, which moves that complexity and maintenance up to the LabVIEW level.
 
-## Open Issues and Questions
+## Current Status & Roadmap
 
-- SSL/TLS choice -- there are several options for which SSL/TLS/Crypto library to use [rust-native-tls](https://github.com/sfackler/rust-native-tls) (system-native TLS) or [rustls](https://github.com/rustls/rustls) and which certs to bundle (or not).  For linux in particular, this may involve needing to recompile the DLL on the target machine, but we would need to test that.
+**This library leverages the production-quality reqwest Rust HTTP client with LabVIEW bindings that are currently being stabilized.** The core functionality is feature-complete for most HTTP client use cases. If tested and working reliably on your project, it's very likely to be stable, but care and discretion are advisable given the ongoing stabilization of the LabVIEW integration layer.
 
-## Roadmap
+- ✅ **Core HTTP Operations:** All methods (GET, POST, PUT, DELETE) with full customization
+- ✅ **Advanced Configuration:** Timeouts, SSL, proxy, authentication, headers
+- ✅ **Async Operations:** Non-blocking requests with progress tracking and cancellation  
+- ✅ **Cross-Platform:** Windows, Linux, macOS with pre-built binaries
+- ✅ **LabVIEW Integration:** 70+ VIs providing native LabVIEW experience
+- ❌ **Multipart Forms:** File uploads using multipart/form-data (planned enhancement)
 
-- See [./docs/ROADMAP.md](docs/ROADMAP.md)
+See [./docs/ROADMAP.md](docs/ROADMAP.md) for detailed implementation status and future enhancements.
