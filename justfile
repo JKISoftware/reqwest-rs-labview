@@ -24,6 +24,10 @@ build:
     just build_windows
     just build_linux
 
+check:
+    cargo fmt -- --check
+    cargo clippy      
+
 develop_windows:                                       
     @ Write-Host "Installing Rust Windows targets..."
     @ rustup target add i686-pc-windows-msvc

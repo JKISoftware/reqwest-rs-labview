@@ -29,10 +29,10 @@ pub extern "C" fn request_read_progress(request_id: RequestId) -> i32 {
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
 
-        if let Some(total) = progress.total_bytes {
-            if total > 0 {
-                return ((progress.received_bytes as f64 / total as f64) * 100.0) as i32;
-            }
+        if let Some(total) = progress.total_bytes
+            && total > 0
+        {
+            return ((progress.received_bytes as f64 / total as f64) * 100.0) as i32;
         }
 
         match progress.status {

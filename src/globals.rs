@@ -30,7 +30,7 @@ pub fn client_register_request(client_id: ClientId, request_id: RequestId) {
     let mut client_requests = CLIENT_REQUESTS.lock().unwrap();
     client_requests
         .entry(client_id)
-        .or_insert_with(HashSet::new)
+        .or_default()
         .insert(request_id);
 }
 

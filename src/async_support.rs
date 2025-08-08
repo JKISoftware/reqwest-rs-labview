@@ -53,7 +53,7 @@ pub async fn process_request(
                                         progress.final_response = Some(Response {
                                             status,
                                             headers,
-                                            body: Err(format!("File write error: {}", e)),
+                                            body: Err(format!("File write error: {e}")),
                                         });
                                         return;
                                     }
@@ -70,7 +70,7 @@ pub async fn process_request(
                                     progress.final_response = Some(Response {
                                         status,
                                         headers,
-                                        body: Err(format!("Network error: {}", e)),
+                                        body: Err(format!("Network error: {e}")),
                                     });
                                     return;
                                 }
@@ -93,7 +93,7 @@ pub async fn process_request(
                         progress.final_response = Some(Response {
                             status,
                             headers,
-                            body: Err(format!("File open error: {}", e)),
+                            body: Err(format!("File open error: {e}")),
                         });
                     }
                 }
@@ -122,7 +122,7 @@ pub async fn process_request(
                         progress.final_response = Some(Response {
                             status,
                             headers,
-                            body: Err(format!("Body read error: {}", e)),
+                            body: Err(format!("Body read error: {e}")),
                         });
                     }
                 }
@@ -135,7 +135,7 @@ pub async fn process_request(
             progress.final_response = Some(Response {
                 status: reqwest::StatusCode::BAD_REQUEST, // Default status code for errors
                 headers: reqwest::header::HeaderMap::new(),
-                body: Err(format!("Request error: {}", e)),
+                body: Err(format!("Request error: {e}")),
             });
         }
     }

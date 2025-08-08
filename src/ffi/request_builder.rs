@@ -223,7 +223,7 @@ pub extern "C" fn request_builder_header(
     let header_name = match reqwest::header::HeaderName::from_bytes(key_str.as_bytes()) {
         Ok(name) => name,
         Err(e) => {
-            builder_wrapper.error_message = Some(format!("Invalid header name: {}", e));
+            builder_wrapper.error_message = Some(format!("Invalid header name: {e}"));
             return false;
         }
     };
@@ -231,7 +231,7 @@ pub extern "C" fn request_builder_header(
     let header_value = match reqwest::header::HeaderValue::from_str(value_str) {
         Ok(val) => val,
         Err(e) => {
-            builder_wrapper.error_message = Some(format!("Invalid header value: {}", e));
+            builder_wrapper.error_message = Some(format!("Invalid header value: {e}"));
             return false;
         }
     };
@@ -383,7 +383,7 @@ pub extern "C" fn request_builder_json(
     let json_value = match serde_json::from_str::<serde_json::Value>(json_str) {
         Ok(v) => v,
         Err(e) => {
-            builder_wrapper.error_message = Some(format!("Invalid JSON format: {}", e));
+            builder_wrapper.error_message = Some(format!("Invalid JSON format: {e}"));
             return false;
         }
     };
@@ -473,7 +473,7 @@ pub extern "C" fn request_builder_read_error_message(
             *(c_str_ptr.add(error_len)) = 0;
         }
 
-        return c_str_ptr;
+        c_str_ptr
     } else {
         unsafe { *num_bytes = 0 };
         ptr::null_mut() // Return null if no error message

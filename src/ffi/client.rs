@@ -43,7 +43,7 @@ pub extern "C" fn client_builder_create_client_and_start(
         Err(e) => {
             // On failure, store the error in the wrapper. The caller is responsible
             // for destroying the builder.
-            builder_wrapper.error_message = Some(format!("Failed to build client: {}", e));
+            builder_wrapper.error_message = Some(format!("Failed to build client: {e}"));
             0 // Return 0 to indicate failure
         }
     }
