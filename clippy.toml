@@ -1,0 +1,2 @@
+# Configuration for clippy in FFI-heavy code
+# We allow certain patterns that are necessary for FFI

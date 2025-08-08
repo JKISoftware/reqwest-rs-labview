@@ -1,6 +1,6 @@
 use crate::{
-    globals::{REQUEST_TRACKER, CLIENT_REQUESTS},
-    types::{RequestId, RequestStatus, HeaderMapWrapper},
+    globals::{CLIENT_REQUESTS, REQUEST_TRACKER},
+    types::{HeaderMapWrapper, RequestId, RequestStatus},
 };
 use libc::c_char;
 use std::ptr;
@@ -245,4 +245,4 @@ pub extern "C" fn request_has_transport_error(request_id: RequestId) -> bool {
     }
 
     false // Return false if request not found or no response yet
-} 
+}
