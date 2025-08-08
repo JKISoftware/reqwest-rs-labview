@@ -1,10 +1,10 @@
 ## Project Status
 
-**This library has matured significantly and is now feature-complete for most HTTP client use cases.** The core functionality described in the original roadmap has been implemented and is being used successfully in production JKI projects.
+**This library leverages the production-quality reqwest Rust HTTP client with LabVIEW bindings that have matured significantly and are currently being stabilized.** The core functionality described in the original roadmap has been implemented and is being used successfully in JKI projects. If tested and working reliably on your project, it's very likely to be stable, but care and discretion are advisable given the ongoing stabilization of the LabVIEW integration layer.
 
 ## Guiding Principles
 
-*   **Production Ready:** This library has evolved from experimental to production-ready. The core API is stable, though minor enhancements may still be added.
+*   **Stable & Maturing:** Built on the production-quality reqwest Rust library. The LabVIEW bindings have evolved from experimental to a mature, stabilized state. The core API is stable, though minor enhancements may still be added.
 *   **Async-Only Core:** The Rust library **only** exposes non-blocking, asynchronous functions. Synchronous (blocking) wrappers are built in the LabVIEW layer when needed.
 *   **Comprehensive LabVIEW Integration:** Full LabVIEW wrapper library with 70+ VIs providing a native LabVIEW experience.
 
@@ -102,13 +102,13 @@ The main feature not yet implemented from the original roadmap:
 
 ## Current Development Status
 
-**The library is production-ready and feature-complete for most HTTP client use cases.** It includes:
+**The library leverages the production-quality reqwest Rust HTTP client with mature LabVIEW bindings that are feature-complete for most HTTP client use cases.** It includes:
 
 - **1200+ lines of FFI implementation** providing comprehensive HTTP client functionality
 - **70+ LabVIEW VIs** offering a native LabVIEW programming experience  
 - **Comprehensive test suite** (some tests currently fail due to network connectivity to httpbin.org, not missing functionality)
 - **Cross-platform support** with pre-built binaries for Windows, Linux, and macOS
-- **Production use** in multiple JKI projects
+- **Production use** in multiple JKI projects (with appropriate testing and discretion)
 
 ## Next Steps
 

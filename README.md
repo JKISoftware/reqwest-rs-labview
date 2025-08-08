@@ -1,10 +1,10 @@
 # reqwest-rs-labview
 
-A production-ready LabVIEW HTTP client library built around the [reqwest](https://crates.io/crates/reqwest) Rust library (the most popular high-level HTTP client library for Rust).
+A comprehensive LabVIEW HTTP client library built around the production-quality [reqwest](https://crates.io/crates/reqwest) Rust library (the most popular high-level HTTP client library for Rust). The LabVIEW bindings are currently being stabilized and have been successfully used in multiple JKI projects.
 
 ## Key Features
 
-- **✅ Production Ready** - Successfully used in multiple JKI production projects
+- **✅ Mature & Stable** - Built on the production-quality reqwest Rust library with LabVIEW bindings that are being stabilized
 - **✅ Asynchronous & Fast** - Non-blocking concurrent requests with real-time progress tracking
 - **✅ Cross-platform** - Windows (32/64-bit), Linux (64-bit), and macOS with pre-built binaries
 - **✅ Feature Complete** - Comprehensive HTTP client with all major features implemented:
@@ -71,7 +71,7 @@ The `lv_src/Examples/` directory contains working examples demonstrating:
 
 ## Current Status & Roadmap
 
-**This library is production-ready and feature-complete for most HTTP client use cases.**
+**This library leverages the production-quality reqwest Rust HTTP client with LabVIEW bindings that are currently being stabilized.** The core functionality is feature-complete for most HTTP client use cases. If tested and working reliably on your project, it's very likely to be stable, but care and discretion are advisable given the ongoing stabilization of the LabVIEW integration layer.
 
 - ✅ **Core HTTP Operations:** All methods (GET, POST, PUT, DELETE) with full customization
 - ✅ **Advanced Configuration:** Timeouts, SSL, proxy, authentication, headers
