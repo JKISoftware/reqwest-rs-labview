@@ -45,18 +45,18 @@ jobs:
           #   container: ''
           #   shared-lib-extension: so
           #   bitness: 64
-          # - target: x86_64-apple-darwin
-          #   arch: x86_64
-          #   runs-on: macos-latest
-          #   container: ''
-          #   shared-lib-extension: dylib
-          #   bitness: 64
-          # - target: aarch64-apple-darwin
-          #   arch: aarch64
-          #   runs-on: macos-latest
-          #   container: ''
-          #   shared-lib-extension: dylib
-          #   bitness: 64
+          - target: x86_64-apple-darwin
+            arch: x86_64
+            runs-on: macos-latest
+            container: ''
+            shared-lib-extension: dylib
+            bitness: 64
+          - target: aarch64-apple-darwin
+            arch: aarch64
+            runs-on: macos-latest
+            container: ''
+            shared-lib-extension: dylib
+            bitness: 64
 
     steps:
 
