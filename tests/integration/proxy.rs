@@ -1,15 +1,15 @@
-use reqwest_dll::*;
 use crate::integration::common::{constants::*, wait_for_request_with_retry};
-use std::time::Duration;
-use std::sync::Arc;
-use std::net::TcpListener;
+use reqwest_dll::*;
 use serde_json::Value;
+use std::net::TcpListener;
+use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
+use pingora_core::Result;
 use pingora_core::server::Server;
 use pingora_core::server::configuration::ServerConf;
 use pingora_core::upstreams::peer::HttpPeer;
-use pingora_core::Result;
 use pingora_proxy::{ProxyHttp, Session};
 
 // Define a simple proxy service that just forwards the request
@@ -24,23 +24,39 @@ impl ProxyHttp for TestProxyService {
         // Extract the host and port from the request URL
         let uri = session.req_header().uri.clone();
         let host = uri.host().unwrap_or("httpbin.org");
-        let port = uri.port_u16().unwrap_or(if uri.scheme_str() == Some("https") { 443 } else { 80 });
+        let port = uri
+            .port_u16()
+            .unwrap_or(if uri.scheme_str() == Some("https") {
+                443
+            } else {
+                80
+            });
         let use_tls = uri.scheme_str() == Some("https");
-        
+
         println!("Proxy forwarding to {}:{} (TLS: {})", host, port, use_tls);
-        
+
         // Create a peer with the appropriate host and port
         let peer = Box::new(HttpPeer::new((host, port), use_tls, host.to_string()));
         Ok(peer)
     }
-    
-    async fn logging(&self, session: &mut Session, e: Option<&pingora_core::Error>, _ctx: &mut Self::CTX) {
-        let status = session.response_written().map(|r| r.status.as_u16()).unwrap_or(0);
-        println!("Proxy request: {} {} -> status: {}", 
-            session.req_header().method, 
-            session.req_header().uri, 
-            status);
-        
+
+    async fn logging(
+        &self,
+        session: &mut Session,
+        e: Option<&pingora_core::Error>,
+        _ctx: &mut Self::CTX,
+    ) {
+        let status = session
+            .response_written()
+            .map(|r| r.status.as_u16())
+            .unwrap_or(0);
+        println!(
+            "Proxy request: {} {} -> status: {}",
+            session.req_header().method,
+            session.req_header().uri,
+            status
+        );
+
         if let Some(err) = e {
             println!("Proxy error: {:?}", err);
         }
@@ -67,29 +83,29 @@ fn start_proxy_server(port: u16) -> Arc<()> {
 
     // Create a proxy service
     let mut proxy = pingora_proxy::http_proxy_service(&server.configuration, TestProxyService);
-    
+
     // Add a TCP listener on the specified port
     let bind_addr = format!("127.0.0.1:{}", port);
     println!("Adding TCP listener on {}", bind_addr);
     proxy.add_tcp(&bind_addr);
-    
+
     // Add the service to the server
     server.add_service(proxy);
-    
+
     // Create a thread handle to return
     let handle = Arc::new(());
     let handle_clone = handle.clone();
-    
+
     // Run the server in a background thread
     std::thread::spawn(move || {
         println!("Starting proxy server...");
         server.run_forever();
     });
-    
+
     // Wait a moment for the server to start
     std::thread::sleep(Duration::from_millis(500));
     println!("Proxy server should be running now");
-    
+
     handle_clone
 }
 
@@ -103,16 +119,16 @@ fn test_client_with_proxy() {
             return;
         }
     };
-    
+
     println!("Starting proxy server on port {}", port);
-    
+
     // Start our local proxy server
     let _server = start_proxy_server(port);
-    
+
     // Build a client with the proxy
     let client_builder_ptr = client_builder_create();
     assert!(!client_builder_ptr.is_null());
-    
+
     // Set a timeout for the client (10 seconds)
     assert!(client_builder_timeout_ms(client_builder_ptr, 10000));
 
@@ -144,7 +160,7 @@ fn test_client_with_proxy() {
     if let Some(err) = &error_msg {
         println!("Error message: {}", err);
     }
-    
+
     assert_eq!(
         status, 200,
         "Request through proxy failed with status {}",
@@ -174,4 +190,4 @@ fn test_client_with_proxy() {
     request_destroy(request_id);
     client_destroy(client_id);
     client_builder_destroy(client_builder_ptr);
-} 
+}

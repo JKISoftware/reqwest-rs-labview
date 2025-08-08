@@ -147,7 +147,7 @@ pub extern "C" fn client_builder_https_proxy(
         Ok(p) => p,
         Err(e) => {
             // This can fail if the URL is invalid.
-            builder_wrapper.error_message = Some(format!("Invalid proxy URL: {}", e));
+            builder_wrapper.error_message = Some(format!("Invalid proxy URL: {e}"));
             return false;
         }
     };
@@ -189,12 +189,12 @@ pub extern "C" fn client_builder_set_proxy(
         return false;
     }
 
-    let proxy_url = format!("http://{}:{}", server_str, port);
+    let proxy_url = format!("http://{server_str}:{port}");
 
     let mut proxy = match reqwest::Proxy::all(&proxy_url) {
         Ok(p) => p,
         Err(e) => {
-            builder_wrapper.error_message = Some(format!("Invalid proxy URL: {}", e));
+            builder_wrapper.error_message = Some(format!("Invalid proxy URL: {e}"));
             return false;
         }
     };
@@ -285,7 +285,7 @@ pub extern "C" fn client_builder_read_error_message(
             *(c_str_ptr.add(error_len)) = 0;
         }
 
-        return c_str_ptr;
+        c_str_ptr
     } else {
         unsafe { *num_bytes = 0 };
         ptr::null_mut() // Return null if no error message
@@ -319,4 +319,4 @@ pub extern "C" fn client_builder_user_agent(
     // The error is stored inside the builder and will be returned by `build()`.
     unsafe { &mut *builder_ptr }.builder = builder.user_agent(user_agent_str);
     true
-} 
+}

@@ -120,6 +120,12 @@ jobs:
         zip -r $FRAMEWORK_NAME.framework.zip $FRAMEWORK_NAME.framework
         popd
 
+    - name: Check formatting
+      run: cargo fmt -- --check
+      
+    - name: Run clippy
+      run: cargo clippy
+      
     - name: Run tests
       run: cargo test --verbose
       

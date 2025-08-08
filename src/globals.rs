@@ -1,8 +1,8 @@
+use crate::types::{ClientId, ClientWrapper, ProgressInfo, RequestId, RequestStatus};
 use std::{
     collections::{HashMap, HashSet},
     sync::Mutex,
 };
-use crate::types::{ClientWrapper, ProgressInfo, RequestId, ClientId, RequestStatus};
 
 // Global runtime and request tracker
 lazy_static::lazy_static! {
@@ -30,7 +30,7 @@ pub fn client_register_request(client_id: ClientId, request_id: RequestId) {
     let mut client_requests = CLIENT_REQUESTS.lock().unwrap();
     client_requests
         .entry(client_id)
-        .or_insert_with(HashSet::new)
+        .or_default()
         .insert(request_id);
 }
 
@@ -50,4 +50,4 @@ pub fn client_cancel_requests(client_id: ClientId) {
             }
         }
     }
-} 
+}
