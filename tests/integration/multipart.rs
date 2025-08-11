@@ -150,9 +150,11 @@ fn test_multipart_form_with_request() {
 
 #[test]
 fn test_multipart_form_with_file() {
-    // Create a test file
-    let test_file_path = "/tmp/test_multipart_file.txt";
-    std::fs::write(test_file_path, b"This is test file content").unwrap();
+    // Create a test file in a cross-platform temporary directory
+    let temp_dir = std::env::temp_dir();
+    let test_file_path = temp_dir.join("test_multipart_file.txt");
+    let test_file_path_str = test_file_path.to_str().unwrap();
+    std::fs::write(&test_file_path, b"This is test file content").unwrap();
 
     // Build a client
     let client_builder_ptr = client_builder_create();
@@ -181,11 +183,11 @@ fn test_multipart_form_with_file() {
 
     // Add the file
     let file_field = CString::new("file").unwrap();
-    let file_path = CString::new(test_file_path).unwrap();
+    let file_path_cstr = CString::new(test_file_path_str).unwrap();
     assert!(multipart_form_add_file(
         form_ptr,
         file_field.as_ptr(),
-        file_path.as_ptr()
+        file_path_cstr.as_ptr()
     ));
 
     // Attach the multipart form to the request builder
@@ -214,7 +216,7 @@ fn test_multipart_form_with_file() {
     request_builder_destroy(builder_ptr);
     client_builder_destroy(client_builder_ptr);
     client_destroy(client_id);
-    std::fs::remove_file(test_file_path).ok();
+    std::fs::remove_file(&test_file_path).ok();
 }
 
 #[test]
