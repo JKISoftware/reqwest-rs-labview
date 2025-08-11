@@ -80,6 +80,6 @@ The `lv_src/Examples/` directory contains working examples demonstrating:
 - ✅ **Async Operations:** Non-blocking requests with progress tracking and cancellation  
 - ✅ **Cross-Platform:** Windows, Linux, macOS with pre-built binaries
 - ✅ **LabVIEW Integration:** 70+ VIs providing native LabVIEW experience
-- ❌ **Multipart Forms:** File uploads using multipart/form-data (planned enhancement)
+- ❌ **Multipart Forms:** File uploads using multipart/form-data (see [PR#32 Multipart uploads](https://github.com/JKISoftware/reqwest-rs-labview/pull/32))
 
 See [./docs/ROADMAP.md](docs/ROADMAP.md) for detailed implementation status and future enhancements.
