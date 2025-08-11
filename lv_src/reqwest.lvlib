@@ -1,7 +1,6 @@
 ﻿<?xml version='1.0' encoding='UTF-8'?>
 <Library LVVersion="20008000">
 	<Property Name="NI.Lib.Icon" Type="Bin">)!#!!!!!!!)!"1!&amp;!!!-!%!!!@````]!!!!"!!%!!!*)!!!*Q(C=\&gt;5^5O.!%)&lt;B&lt;[ENVR,["J2$UAZ*P1%(]"8[#EY*T2%[J8$C&lt;,/F@!'#PI+OY#NYXRGV7%=Y!9KC'(FE[:O`"UE75C_`J*][HCOT6QPN9Z_W[^`D_&lt;%;WK?(YW\=RJZ^0YU`&lt;:_GG^JH*]//U^A[GNJH*_P].^5]L`L0&amp;(W8\`+VS^X:(]'\`QZ_K,W)K%E.KF..&lt;&gt;FDEC&gt;ZEC&gt;ZEC&gt;ZE!&gt;ZE!&gt;ZE!?ZETOZETOZETOZE2OZE2OZE2NZX]B&amp;,H+21UI74R:+*EUG3$J$5&lt;*,0)EH]31?4J6Y%E`C34S*BSZ+0)EH]33?R--Q*:\%EXA34_*BKC\*PJ(D34R-L]!4?!*0Y!E],+H!%Q##R9+*AUFA+'A-$A*0Y!E](#LQ"*\!%XA#$]U+0)%H]!3?Q-/1@F7C;^J'DI&gt;JZ(A=D_.R0)[(K?6Y()`D=4S/B_8E?"S0AX!7&gt;#;()'?1U]%Z=4S/BS]Z(M@D?"S0Y['JXS(P6[:JWE;/R`!9(M.D?!Q05]DQ'"\$9XA-$^0+]"A?QW.Y$!^,S@!9(M.D1)R&amp;76\':-:!IZ-2'"Y_`7GR@J?C3[RP5DW]KI&gt;3^&lt;#J(C,6Q['[[;K&lt;K&lt;J*KIOPOKCKC[7[#+I`4I67963,K!;XDDKQ([B\[I[[I;[J+_K3OK$/W^!X\HAY($1-A`&lt;\P8;\H4;&lt;D&gt;&lt;LN6;LF:&lt;,J2;,B?&lt;T_=NLY)LNZ95QPJ@O/0\\`$2MLR]OH[\`X'^`8^U_&lt;G`O7`Y"`Z]`Q&lt;N2&amp;TJ&gt;AWPU$Y&amp;94HQ!!!!!</Property>
-	<Property Name="NI.Lib.SourceVersion" Type="Int">536903680</Property>
 	<Property Name="NI.Lib.Version" Type="Str">1.0.0.0</Property>
 	<Property Name="NI.LV.All.SourceOnly" Type="Bool">true</Property>
 	<Property Name="NI.SortType" Type="Int">3</Property>
@@ -24,4 +23,5 @@
 	<Item Name="Headers.lvclass" Type="LVClass" URL="../Headers/Headers.lvclass"/>
 	<Item Name="Request.lvclass" Type="LVClass" URL="../Request/Request.lvclass"/>
 	<Item Name="RequestBuilder.lvclass" Type="LVClass" URL="../RequestBuilder/RequestBuilder.lvclass"/>
+	<Item Name="MultipartForm.lvclass" Type="LVClass" URL="../MultipartForm/MultipartForm.lvclass"/>
 </Library>
