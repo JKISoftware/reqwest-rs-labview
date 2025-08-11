@@ -23,6 +23,10 @@ pub use ffi::client_builder::{
     client_builder_timeout_ms, client_builder_user_agent,
 };
 pub use ffi::headers::{headers_add, headers_create, headers_destroy, headers_get_all};
+pub use ffi::multipart::{
+    multipart_form_add_bytes, multipart_form_add_file, multipart_form_add_text,
+    multipart_form_create, multipart_form_destroy, multipart_form_read_error_message,
+};
 pub use ffi::request::{
     request_cancel, request_destroy, request_has_transport_error, request_is_complete,
     request_read_progress, request_read_received_bytes, request_read_response_body,
@@ -32,8 +36,8 @@ pub use ffi::request::{
 pub use ffi::request_builder::{
     request_builder_basic_auth, request_builder_bearer_auth, request_builder_body,
     request_builder_create_request_and_send, request_builder_destroy, request_builder_form,
-    request_builder_header, request_builder_headers, request_builder_json, request_builder_query,
-    request_builder_read_error_message, request_builder_set_output_file,
+    request_builder_header, request_builder_headers, request_builder_json, request_builder_multipart,
+    request_builder_query, request_builder_read_error_message, request_builder_set_output_file,
     request_builder_timeout_ms,
 };
 pub use ffi::utils::string_destroy;
