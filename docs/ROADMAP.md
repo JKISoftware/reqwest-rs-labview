@@ -96,7 +96,7 @@ The main feature not yet implemented from the original roadmap:
 *   **Status:** **MOSTLY COMPLETED** - Most advanced features implemented
 *   **Implementation:**
     - ✅ Authentication Helpers (`request_builder_basic_auth`, `request_builder_bearer_auth`)
-    - ❌ **Multipart Forms:** Not yet implemented - this is the main remaining feature
+    - ❌ **Multipart Forms:** Not yet implemented - this is the main remaining featurw. See [PR#32 Multipart uploads](https://github.com/JKISoftware/reqwest-rs-labview/pull/32) for progress.
     - ✅ Query Parameter Builder (`request_builder_query`)
     - ✅ Proxy & Redirect Configuration (extensive proxy support in client builder)
 
