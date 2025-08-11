@@ -17,9 +17,12 @@
 		<Item Name="Tests" Type="Folder">
 			<Item Name="reqwest_tests.lvlib" Type="Library" URL="../Tests/reqwest_tests.lvlib"/>
 		</Item>
+		<Item Name="Examples" Type="Folder">
+			<Item Name="test_client.vi" Type="VI" URL="../test_client.vi"/>
+			<Item Name="Example - Download with Progress and Abort (RUST).vi" Type="VI" URL="../Examples/Example - Download with Progress and Abort (RUST).vi"/>
+			<Item Name="Example - Multipart File Upload.vi" Type="VI" URL="../MultipartForm/Example - Multipart File Upload.vi"/>
+		</Item>
 		<Item Name="reqwest.lvlib" Type="Library" URL="../reqwest.lvlib"/>
-		<Item Name="test_client.vi" Type="VI" URL="../test_client.vi"/>
-		<Item Name="Example - Download with Progress and Abort (RUST).vi" Type="VI" URL="../Examples/Example - Download with Progress and Abort (RUST).vi"/>
 		<Item Name="Dependencies" Type="Dependencies">
 			<Item Name="user.lib" Type="Folder">
 				<Item Name="openg_string.lvlib" Type="Library" URL="/&lt;userlib&gt;/_OpenG.lib/string/string.llb/openg_string.lvlib"/>
@@ -176,7 +179,6 @@
 				<Item Name="Set VI Library File Info.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/libraryn.llb/Set VI Library File Info.vi"/>
 				<Item Name="TRef Traverse.vi" Type="VI" URL="/&lt;vilib&gt;/Utility/traverseref.llb/TRef Traverse.vi"/>
 			</Item>
-			<Item Name="start_get_request.vi" Type="VI" URL="../Client/start_get_request.vi"/>
 			<Item Name="lv_reqwest_64.dll" Type="Document" URL="../lv_reqwest_64.dll"/>
 		</Item>
 		<Item Name="Build Specifications" Type="Build"/>
