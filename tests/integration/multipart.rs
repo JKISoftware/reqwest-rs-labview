@@ -200,7 +200,10 @@ fn test_multipart_form_with_file() {
 
     // httpbin.org should return 200 for successful POST
     if status >= 500 && status < 600 {
-        println!("Warning: httpbin.org returned {} (server error), test may be flaky", status);
+        println!(
+            "Warning: httpbin.org returned {} (server error), test may be flaky",
+            status
+        );
     } else {
         assert_eq!(status, 200, "Expected status 200, got {}", status);
     }
@@ -237,7 +240,7 @@ fn test_multipart_form_with_bytes() {
     let data = b"Binary data content here";
     let filename = CString::new("data.bin").unwrap();
     let mime_type = CString::new("application/octet-stream").unwrap();
-    
+
     assert!(multipart_form_add_bytes(
         form_ptr,
         field_name.as_ptr(),
@@ -259,7 +262,10 @@ fn test_multipart_form_with_bytes() {
 
     // httpbin.org should return 200 for successful POST
     if status >= 500 && status < 600 {
-        println!("Warning: httpbin.org returned {} (server error), test may be flaky", status);
+        println!(
+            "Warning: httpbin.org returned {} (server error), test may be flaky",
+            status
+        );
     } else {
         assert_eq!(status, 200, "Expected status 200, got {}", status);
     }
@@ -281,7 +287,7 @@ fn test_multipart_form_error_handling() {
     // Create invalid UTF-8 sequence
     let invalid_utf8 = vec![0xFF, 0xFE, 0x00];
     let valid_value = CString::new("value").unwrap();
-    
+
     // This should fail
     assert!(!multipart_form_add_text(
         form_ptr,
@@ -294,10 +300,10 @@ fn test_multipart_form_error_handling() {
     let error_msg = multipart_form_read_error_message(form_ptr, &mut num_bytes);
     assert!(!error_msg.is_null());
     assert!(num_bytes > 0);
-    
+
     // Clean up error message
     string_destroy(error_msg);
-    
+
     // Clean up form
     multipart_form_destroy(form_ptr);
 }
@@ -319,10 +325,10 @@ fn test_multipart_form_consumed_error() {
     let client_id = client_builder_create_client_and_start(client_builder_ptr);
     let url = CString::new("https://httpbin.org/post").unwrap();
     let builder_ptr = client_create_request_builder(client_id, HTTP_METHOD_POST, url.as_ptr());
-    
+
     // Consume the form
     assert!(request_builder_multipart(builder_ptr, form_ptr));
-    
+
     // Try to use the form again - should fail
     assert!(!multipart_form_add_text(
         form_ptr,

@@ -56,8 +56,7 @@ pub extern "C" fn multipart_form_add_text(
             match value_cstr.to_str() {
                 Ok(s) => s,
                 Err(_) => {
-                    wrapper.error_message =
-                        Some("Field value contains invalid UTF-8".to_string());
+                    wrapper.error_message = Some("Field value contains invalid UTF-8".to_string());
                     return false;
                 }
             },
@@ -128,7 +127,7 @@ pub extern "C" fn multipart_form_add_file(
     let file_bytes = match std::fs::read(path_str) {
         Ok(bytes) => bytes,
         Err(e) => {
-            wrapper.error_message = Some(format!("Failed to read file: {}", e));
+            wrapper.error_message = Some(format!("Failed to read file: {e}"));
             return false;
         }
     };
@@ -212,7 +211,7 @@ pub extern "C" fn multipart_form_add_bytes(
                 match part.mime_str(mime_str) {
                     Ok(p) => part = p,
                     Err(e) => {
-                        wrapper.error_message = Some(format!("Invalid MIME type: {}", e));
+                        wrapper.error_message = Some(format!("Invalid MIME type: {e}"));
                         return false;
                     }
                 }

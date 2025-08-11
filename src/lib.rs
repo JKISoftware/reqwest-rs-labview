@@ -36,8 +36,8 @@ pub use ffi::request::{
 pub use ffi::request_builder::{
     request_builder_basic_auth, request_builder_bearer_auth, request_builder_body,
     request_builder_create_request_and_send, request_builder_destroy, request_builder_form,
-    request_builder_header, request_builder_headers, request_builder_json, request_builder_multipart,
-    request_builder_query, request_builder_read_error_message, request_builder_set_output_file,
-    request_builder_timeout_ms,
+    request_builder_header, request_builder_headers, request_builder_json,
+    request_builder_multipart, request_builder_query, request_builder_read_error_message,
+    request_builder_set_output_file, request_builder_timeout_ms,
 };
 pub use ffi::utils::string_destroy;

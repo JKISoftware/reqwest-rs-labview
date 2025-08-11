@@ -1,6 +1,8 @@
 use crate::{
     globals::{GLOBAL_RUNTIME, client_register_request, request_builder_create_request_id},
-    types::{HeaderMapWrapper, MultipartFormWrapper, RequestBuilderWrapper, RequestId, RequestStatus},
+    types::{
+        HeaderMapWrapper, MultipartFormWrapper, RequestBuilderWrapper, RequestId, RequestStatus,
+    },
 };
 use libc::c_char;
 use std::{
