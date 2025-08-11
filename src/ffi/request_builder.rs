@@ -1,6 +1,8 @@
 use crate::{
     globals::{GLOBAL_RUNTIME, client_register_request, request_builder_create_request_id},
-    types::{HeaderMapWrapper, RequestBuilderWrapper, RequestId, RequestStatus},
+    types::{
+        HeaderMapWrapper, MultipartFormWrapper, RequestBuilderWrapper, RequestId, RequestStatus,
+    },
 };
 use libc::c_char;
 use std::{
@@ -437,6 +439,38 @@ pub extern "C" fn request_builder_form(
         let form = [(key_str, value_str)];
         b.form(&form)
     })
+}
+
+/// Set multipart form data
+#[unsafe(no_mangle)]
+pub extern "C" fn request_builder_multipart(
+    builder_ptr: *mut RequestBuilderWrapper,
+    form_ptr: *mut MultipartFormWrapper,
+) -> bool {
+    if builder_ptr.is_null() || form_ptr.is_null() {
+        return false;
+    }
+
+    let builder_wrapper = unsafe { &mut *builder_ptr };
+    let form_wrapper = unsafe { &mut *form_ptr };
+
+    // Check if form has an error
+    if form_wrapper.error_message.is_some() {
+        builder_wrapper.error_message = Some("Multipart form has an error".to_string());
+        return false;
+    }
+
+    // Take the form from the wrapper (it will be consumed)
+    let form = match form_wrapper.form.take() {
+        Some(f) => f,
+        None => {
+            builder_wrapper.error_message = Some("Multipart form was already consumed".to_string());
+            return false;
+        }
+    };
+
+    // Set the multipart form on the request builder
+    builder_wrapper.with_builder(|b| b.multipart(form))
 }
 
 /// Get the last error message from a RequestBuilder as a C string.

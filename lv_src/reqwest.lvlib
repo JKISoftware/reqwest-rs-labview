@@ -15,6 +15,7 @@
 		<Item Name="support.read_and_free_array_multiline_string_at_address.vi" Type="VI" URL="../support/support.read_and_free_array_multiline_string_at_address.vi"/>
 		<Item Name="support.read_and_free_string_at_address.vi" Type="VI" URL="../support/support.read_and_free_string_at_address.vi"/>
 		<Item Name="read_c_string_at_memory_address_to_file.vi" Type="VI" URL="../support/read_c_string_at_memory_address_to_file.vi"/>
+		<Item Name="support.path_to_string.vi" Type="VI" URL="../support/support.path_to_string.vi"/>
 	</Item>
 	<Item Name="type_definitions" Type="Folder">
 		<Item Name="http_method_enum.ctl" Type="VI" URL="../Types/http_method_enum.ctl"/>
@@ -24,4 +25,5 @@
 	<Item Name="Headers.lvclass" Type="LVClass" URL="../Headers/Headers.lvclass"/>
 	<Item Name="Request.lvclass" Type="LVClass" URL="../Request/Request.lvclass"/>
 	<Item Name="RequestBuilder.lvclass" Type="LVClass" URL="../RequestBuilder/RequestBuilder.lvclass"/>
+	<Item Name="MultipartForm.lvclass" Type="LVClass" URL="../MultipartForm/MultipartForm.lvclass"/>
 </Library>

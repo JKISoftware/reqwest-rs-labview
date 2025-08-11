@@ -86,3 +86,9 @@ pub const TLS_VERSION_1_0: u8 = 1;
 pub const TLS_VERSION_1_1: u8 = 2;
 pub const TLS_VERSION_1_2: u8 = 3;
 pub const TLS_VERSION_1_3: u8 = 4;
+
+/// Wrapper for multipart::Form to make it FFI-compatible
+pub struct MultipartFormWrapper {
+    pub form: Option<reqwest::multipart::Form>,
+    pub error_message: Option<String>,
+}
