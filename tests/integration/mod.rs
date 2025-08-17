@@ -5,5 +5,6 @@ pub mod common;
 pub mod client;
 pub mod error_handling;
 pub mod headers;
+pub mod multipart;
 pub mod proxy;
 pub mod request;
