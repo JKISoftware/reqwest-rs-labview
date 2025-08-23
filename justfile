@@ -4,6 +4,9 @@ set shell := ["pwsh", "-c"]
 alias   b   := build
 alias   d   := develop
 
+list:
+    @ just --list
+
 build_32:
     cargo build --target=i686-pc-windows-msvc --release
     Copy-Item -Force -Path "target\i686-pc-windows-msvc\release\*.dll" -Destination "lv_src\lv_reqwest_32.dll"
@@ -27,6 +30,9 @@ build:
 check:
     cargo fmt -- --check
     cargo clippy      
+
+format:
+    cargo fmt
 
 develop_windows:                                       
     @ Write-Host "Installing Rust Windows targets..."
