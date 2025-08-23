@@ -141,7 +141,7 @@ pub async fn process_request(
             progress.status = RequestStatus::Error;
             progress.final_response = Some(Response {
                 status: reqwest::StatusCode::BAD_REQUEST, // Default status code for errors
-                version: reqwest::Version::HTTP_11, // Default to HTTP/1.1 for errors
+                version: reqwest::Version::HTTP_11,       // Default to HTTP/1.1 for errors
                 headers: reqwest::header::HeaderMap::new(),
                 body: Err(format!("Request error: {e}")),
             });
