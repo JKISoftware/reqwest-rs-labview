@@ -246,3 +246,53 @@ pub extern "C" fn request_has_transport_error(request_id: RequestId) -> bool {
 
     false // Return false if request not found or no response yet
 }
+
+/// Get the HTTP version as a string directly from a request ID
+/// Returns a C string like "HTTP/1.1", "HTTP/2", etc. Caller must free the memory.
+#[unsafe(no_mangle)]
+pub extern "C" fn request_read_response_version(
+    request_id: RequestId,
+    num_bytes: *mut u32,
+) -> *mut c_char {
+    if num_bytes.is_null() {
+        return ptr::null_mut();
+    }
+
+    // Get the response info
+    let tracker = REQUEST_TRACKER.lock().unwrap();
+
+    if let Some(progress_info) = tracker.get(&request_id) {
+        let progress = progress_info.read().unwrap();
+        if let Some(ref response) = progress.final_response {
+            let version_str = match response.version {
+                reqwest::Version::HTTP_09 => "HTTP/0.9",
+                reqwest::Version::HTTP_10 => "HTTP/1.0",
+                reqwest::Version::HTTP_11 => "HTTP/1.1",
+                reqwest::Version::HTTP_2 => "HTTP/2",
+                reqwest::Version::HTTP_3 => "HTTP/3",
+                _ => "HTTP/Unknown",
+            };
+
+            // Calculate size including null terminator
+            let str_len = version_str.len();
+            unsafe { *num_bytes = str_len as u32 };
+
+            // Allocate memory for the string + null terminator
+            let c_str_ptr = unsafe { libc::malloc(str_len + 1) as *mut c_char };
+            if c_str_ptr.is_null() {
+                return ptr::null_mut();
+            }
+
+            // Copy the string and add null terminator
+            unsafe {
+                std::ptr::copy_nonoverlapping(version_str.as_ptr(), c_str_ptr as *mut u8, str_len);
+                *(c_str_ptr.add(str_len)) = 0;
+            }
+
+            return c_str_ptr;
+        }
+    }
+
+    unsafe { *num_bytes = 0 };
+    ptr::null_mut() // Return null if request not found or no response yet
+}
