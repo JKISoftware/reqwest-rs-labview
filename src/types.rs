@@ -1,4 +1,4 @@
-use reqwest::{Client, RequestBuilder, StatusCode, header::HeaderMap};
+use reqwest::{Client, RequestBuilder, StatusCode, Version, header::HeaderMap};
 use std::sync::{Arc, RwLock};
 
 /// Type aliases for IDs
@@ -68,6 +68,7 @@ pub struct RequestProgress {
 /// Response struct that can be passed back to LabVIEW
 pub struct Response {
     pub status: StatusCode,
+    pub version: Version,
     pub headers: HeaderMap,
     pub body: Result<Vec<u8>, String>,
 }

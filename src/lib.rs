@@ -30,8 +30,8 @@ pub use ffi::multipart::{
 pub use ffi::request::{
     request_cancel, request_destroy, request_has_transport_error, request_is_complete,
     request_read_progress, request_read_received_bytes, request_read_response_body,
-    request_read_response_headers, request_read_response_status, request_read_total_bytes,
-    request_read_transport_error,
+    request_read_response_headers, request_read_response_status, request_read_response_version,
+    request_read_total_bytes, request_read_transport_error,
 };
 pub use ffi::request_builder::{
     request_builder_basic_auth, request_builder_bearer_auth, request_builder_body,
