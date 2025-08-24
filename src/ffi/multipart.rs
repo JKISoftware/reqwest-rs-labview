@@ -196,25 +196,23 @@ pub extern "C" fn multipart_form_add_bytes(
     let mut part = multipart::Part::bytes(data_vec);
 
     // Add filename if provided
-    if !filename.is_null() {
-        if let Ok(filename_str) = unsafe { CStr::from_ptr(filename).to_str() } {
-            if !filename_str.is_empty() {
-                part = part.file_name(filename_str.to_string());
-            }
-        }
+    if !filename.is_null()
+        && let Ok(filename_str) = unsafe { CStr::from_ptr(filename).to_str() }
+        && !filename_str.is_empty()
+    {
+        part = part.file_name(filename_str.to_string());
     }
 
     // Add MIME type if provided
-    if !mime_type.is_null() {
-        if let Ok(mime_str) = unsafe { CStr::from_ptr(mime_type).to_str() } {
-            if !mime_str.is_empty() {
-                match part.mime_str(mime_str) {
-                    Ok(p) => part = p,
-                    Err(e) => {
-                        wrapper.error_message = Some(format!("Invalid MIME type: {e}"));
-                        return false;
-                    }
-                }
+    if !mime_type.is_null()
+        && let Ok(mime_str) = unsafe { CStr::from_ptr(mime_type).to_str() }
+        && !mime_str.is_empty()
+    {
+        match part.mime_str(mime_str) {
+            Ok(p) => part = p,
+            Err(e) => {
+                wrapper.error_message = Some(format!("Invalid MIME type: {e}"));
+                return false;
             }
         }
     }

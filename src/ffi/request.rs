@@ -261,30 +261,26 @@ pub extern "C" fn request_read_error_message(
 
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
-        if let Some(ref response) = progress.final_response {
-            if let Err(ref error_msg) = response.body {
-                let msg_len = error_msg.len();
-                unsafe { *num_bytes = msg_len as u32 };
+        if let Some(ref response) = progress.final_response
+            && let Err(ref error_msg) = response.body
+        {
+            let msg_len = error_msg.len();
+            unsafe { *num_bytes = msg_len as u32 };
 
-                // Allocate memory for the string + null terminator
-                let c_str_ptr = unsafe { libc::malloc(msg_len + 1) as *mut c_char };
-                if c_str_ptr.is_null() {
-                    unsafe { *num_bytes = 0 };
-                    return ptr::null_mut();
-                }
-
-                // Copy the string and add null terminator
-                unsafe {
-                    std::ptr::copy_nonoverlapping(
-                        error_msg.as_ptr(),
-                        c_str_ptr as *mut u8,
-                        msg_len,
-                    );
-                    *(c_str_ptr.add(msg_len)) = 0;
-                }
-
-                return c_str_ptr;
+            // Allocate memory for the string + null terminator
+            let c_str_ptr = unsafe { libc::malloc(msg_len + 1) as *mut c_char };
+            if c_str_ptr.is_null() {
+                unsafe { *num_bytes = 0 };
+                return ptr::null_mut();
             }
+
+            // Copy the string and add null terminator
+            unsafe {
+                std::ptr::copy_nonoverlapping(error_msg.as_ptr(), c_str_ptr as *mut u8, msg_len);
+                *(c_str_ptr.add(msg_len)) = 0;
+            }
+
+            return c_str_ptr;
         }
     }
 
@@ -306,26 +302,26 @@ pub extern "C" fn request_read_error_url(
 
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
-        if let Some(ref response) = progress.final_response {
-            if let Some(ref url) = response.error_url {
-                let url_len = url.len();
-                unsafe { *num_bytes = url_len as u32 };
+        if let Some(ref response) = progress.final_response
+            && let Some(ref url) = response.error_url
+        {
+            let url_len = url.len();
+            unsafe { *num_bytes = url_len as u32 };
 
-                // Allocate memory for the string + null terminator
-                let c_str_ptr = unsafe { libc::malloc(url_len + 1) as *mut c_char };
-                if c_str_ptr.is_null() {
-                    unsafe { *num_bytes = 0 };
-                    return ptr::null_mut();
-                }
-
-                // Copy the string and add null terminator
-                unsafe {
-                    std::ptr::copy_nonoverlapping(url.as_ptr(), c_str_ptr as *mut u8, url_len);
-                    *(c_str_ptr.add(url_len)) = 0;
-                }
-
-                return c_str_ptr;
+            // Allocate memory for the string + null terminator
+            let c_str_ptr = unsafe { libc::malloc(url_len + 1) as *mut c_char };
+            if c_str_ptr.is_null() {
+                unsafe { *num_bytes = 0 };
+                return ptr::null_mut();
             }
+
+            // Copy the string and add null terminator
+            unsafe {
+                std::ptr::copy_nonoverlapping(url.as_ptr(), c_str_ptr as *mut u8, url_len);
+                *(c_str_ptr.add(url_len)) = 0;
+            }
+
+            return c_str_ptr;
         }
     }
 
@@ -347,26 +343,26 @@ pub extern "C" fn request_read_error_source(
 
     if let Some(progress_info) = tracker.get(&request_id) {
         let progress = progress_info.read().unwrap();
-        if let Some(ref response) = progress.final_response {
-            if let Some(ref source) = response.error_source {
-                let src_len = source.len();
-                unsafe { *num_bytes = src_len as u32 };
+        if let Some(ref response) = progress.final_response
+            && let Some(ref source) = response.error_source
+        {
+            let src_len = source.len();
+            unsafe { *num_bytes = src_len as u32 };
 
-                // Allocate memory for the string + null terminator
-                let c_str_ptr = unsafe { libc::malloc(src_len + 1) as *mut c_char };
-                if c_str_ptr.is_null() {
-                    unsafe { *num_bytes = 0 };
-                    return ptr::null_mut();
-                }
-
-                // Copy the string and add null terminator
-                unsafe {
-                    std::ptr::copy_nonoverlapping(source.as_ptr(), c_str_ptr as *mut u8, src_len);
-                    *(c_str_ptr.add(src_len)) = 0;
-                }
-
-                return c_str_ptr;
+            // Allocate memory for the string + null terminator
+            let c_str_ptr = unsafe { libc::malloc(src_len + 1) as *mut c_char };
+            if c_str_ptr.is_null() {
+                unsafe { *num_bytes = 0 };
+                return ptr::null_mut();
             }
+
+            // Copy the string and add null terminator
+            unsafe {
+                std::ptr::copy_nonoverlapping(source.as_ptr(), c_str_ptr as *mut u8, src_len);
+                *(c_str_ptr.add(src_len)) = 0;
+            }
+
+            return c_str_ptr;
         }
     }
 
