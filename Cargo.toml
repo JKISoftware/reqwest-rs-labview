@@ -16,19 +16,19 @@ expect_used = { level = "allow", priority = 1 }               # expect() for cri
 all = { level = "warn", priority = 0 }
 
 [dependencies]
-libc = "0.2.173"
-reqwest = { version = "0.12.20", features = ["json", "stream", "rustls-tls", "multipart"], default-features = false }
-tokio = { version = "1.45.1", features = ["full"] }
+libc = "0.2.175"
+reqwest = { version = "0.12.23", features = ["json", "stream", "rustls-tls", "multipart"], default-features = false }
+tokio = { version = "1.47.1", features = ["full"] }
 lazy_static = "1.5.0"
 futures-util = "0.3.31"
-webpki-roots = "1.0.0"
-serde_json = "1.0.140"
+webpki-roots = "1.0.2"
+serde_json = "1.0.143"
 
 
 [dev-dependencies]
-serde_json = "1.0.140"
-pingora-proxy = "0.5.0"
-pingora-core = "0.5.0"
-async-trait = "0.1.88"
-tokio = { version = "1.45.1", features = ["macros", "rt-multi-thread"] }
-sfv = "0.13.0"
+serde_json = "1.0.143"
+pingora-proxy = "0.6.0"
+pingora-core = "0.6.0"
+async-trait = "0.1.89"
+tokio = { version = "1.47.1", features = ["macros", "rt-multi-thread"] }
+sfv = "0.14.0"
