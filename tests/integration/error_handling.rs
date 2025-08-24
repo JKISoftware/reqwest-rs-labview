@@ -25,12 +25,12 @@ fn test_error_handling_invalid_url() {
         std::thread::sleep(Duration::from_millis(50));
     }
 
-    // Check if we have a transport error
-    assert!(request_has_transport_error(request_id));
+    // Check if we have an error
+    assert!(request_has_error(request_id));
 
     // Read the error message
     let mut error_len: u32 = 0;
-    let error_ptr = request_read_transport_error(request_id, &mut error_len);
+    let error_ptr = request_read_error_message(request_id, &mut error_len);
     assert!(!error_ptr.is_null());
     assert!(error_len > 0);
 
@@ -81,12 +81,12 @@ fn test_error_handling_connection_timeout() {
         std::thread::sleep(Duration::from_millis(50));
     }
 
-    // Check if we have a transport error
-    assert!(request_has_transport_error(request_id));
+    // Check if we have an error
+    assert!(request_has_error(request_id));
 
     // Read the error message
     let mut error_len: u32 = 0;
-    let error_ptr = request_read_transport_error(request_id, &mut error_len);
+    let error_ptr = request_read_error_message(request_id, &mut error_len);
     assert!(!error_ptr.is_null());
     assert!(error_len > 0);
 
@@ -129,8 +129,8 @@ fn test_error_handling_404_not_found() {
         std::thread::sleep(Duration::from_millis(50));
     }
 
-    // For HTTP errors like 404, we don't expect a transport error
-    assert!(!request_has_transport_error(request_id));
+    // For HTTP errors like 404, we don't expect an error in the body
+    assert!(!request_has_error(request_id));
 
     // But we do expect a 404 status code
     let status = request_read_response_status(request_id);

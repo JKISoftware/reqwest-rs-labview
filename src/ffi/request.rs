@@ -251,11 +251,10 @@ pub extern "C" fn request_read_error_kind(request_id: RequestId) -> u8 {
 #[unsafe(no_mangle)]
 pub extern "C" fn request_read_error_message(
     request_id: RequestId,
-    buffer: *mut c_char,
-    buffer_len: usize,
-) -> usize {
-    if buffer.is_null() || buffer_len == 0 {
-        return 0;
+    num_bytes: *mut u32,
+) -> *mut c_char {
+    if num_bytes.is_null() {
+        return ptr::null_mut();
     }
 
     let tracker = REQUEST_TRACKER.lock().unwrap();
@@ -264,28 +263,43 @@ pub extern "C" fn request_read_error_message(
         let progress = progress_info.read().unwrap();
         if let Some(ref response) = progress.final_response {
             if let Err(ref error_msg) = response.body {
-                let msg_len = error_msg.len().min(buffer_len - 1);
-                unsafe {
-                    std::ptr::copy_nonoverlapping(error_msg.as_ptr(), buffer as *mut u8, msg_len);
-                    *buffer.add(msg_len) = 0;
+                let msg_len = error_msg.len();
+                unsafe { *num_bytes = msg_len as u32 };
+
+                // Allocate memory for the string + null terminator
+                let c_str_ptr = unsafe { libc::malloc(msg_len + 1) as *mut c_char };
+                if c_str_ptr.is_null() {
+                    unsafe { *num_bytes = 0 };
+                    return ptr::null_mut();
                 }
-                return msg_len;
+
+                // Copy the string and add null terminator
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        error_msg.as_ptr(),
+                        c_str_ptr as *mut u8,
+                        msg_len,
+                    );
+                    *(c_str_ptr.add(msg_len)) = 0;
+                }
+
+                return c_str_ptr;
             }
         }
     }
 
-    0
+    unsafe { *num_bytes = 0 };
+    ptr::null_mut()
 }
 
 /// Get the error URL if available
 #[unsafe(no_mangle)]
 pub extern "C" fn request_read_error_url(
     request_id: RequestId,
-    buffer: *mut c_char,
-    buffer_len: usize,
-) -> usize {
-    if buffer.is_null() || buffer_len == 0 {
-        return 0;
+    num_bytes: *mut u32,
+) -> *mut c_char {
+    if num_bytes.is_null() {
+        return ptr::null_mut();
     }
 
     let tracker = REQUEST_TRACKER.lock().unwrap();
@@ -294,28 +308,39 @@ pub extern "C" fn request_read_error_url(
         let progress = progress_info.read().unwrap();
         if let Some(ref response) = progress.final_response {
             if let Some(ref url) = response.error_url {
-                let url_len = url.len().min(buffer_len - 1);
-                unsafe {
-                    std::ptr::copy_nonoverlapping(url.as_ptr(), buffer as *mut u8, url_len);
-                    *buffer.add(url_len) = 0;
+                let url_len = url.len();
+                unsafe { *num_bytes = url_len as u32 };
+
+                // Allocate memory for the string + null terminator
+                let c_str_ptr = unsafe { libc::malloc(url_len + 1) as *mut c_char };
+                if c_str_ptr.is_null() {
+                    unsafe { *num_bytes = 0 };
+                    return ptr::null_mut();
                 }
-                return url_len;
+
+                // Copy the string and add null terminator
+                unsafe {
+                    std::ptr::copy_nonoverlapping(url.as_ptr(), c_str_ptr as *mut u8, url_len);
+                    *(c_str_ptr.add(url_len)) = 0;
+                }
+
+                return c_str_ptr;
             }
         }
     }
 
-    0
+    unsafe { *num_bytes = 0 };
+    ptr::null_mut()
 }
 
 /// Get the root cause error message
 #[unsafe(no_mangle)]
 pub extern "C" fn request_read_error_source(
     request_id: RequestId,
-    buffer: *mut c_char,
-    buffer_len: usize,
-) -> usize {
-    if buffer.is_null() || buffer_len == 0 {
-        return 0;
+    num_bytes: *mut u32,
+) -> *mut c_char {
+    if num_bytes.is_null() {
+        return ptr::null_mut();
     }
 
     let tracker = REQUEST_TRACKER.lock().unwrap();
@@ -324,17 +349,29 @@ pub extern "C" fn request_read_error_source(
         let progress = progress_info.read().unwrap();
         if let Some(ref response) = progress.final_response {
             if let Some(ref source) = response.error_source {
-                let src_len = source.len().min(buffer_len - 1);
-                unsafe {
-                    std::ptr::copy_nonoverlapping(source.as_ptr(), buffer as *mut u8, src_len);
-                    *buffer.add(src_len) = 0;
+                let src_len = source.len();
+                unsafe { *num_bytes = src_len as u32 };
+
+                // Allocate memory for the string + null terminator
+                let c_str_ptr = unsafe { libc::malloc(src_len + 1) as *mut c_char };
+                if c_str_ptr.is_null() {
+                    unsafe { *num_bytes = 0 };
+                    return ptr::null_mut();
                 }
-                return src_len;
+
+                // Copy the string and add null terminator
+                unsafe {
+                    std::ptr::copy_nonoverlapping(source.as_ptr(), c_str_ptr as *mut u8, src_len);
+                    *(c_str_ptr.add(src_len)) = 0;
+                }
+
+                return c_str_ptr;
             }
         }
     }
 
-    0
+    unsafe { *num_bytes = 0 };
+    ptr::null_mut()
 }
 
 /// Check if response has an error
