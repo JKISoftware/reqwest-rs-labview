@@ -1,4 +1,9 @@
-use crate::types::{RequestProgress, RequestStatus, Response, ERROR_KIND_NONE, ERROR_KIND_TIMEOUT, ERROR_KIND_CONNECTION, ERROR_KIND_REDIRECT, ERROR_KIND_INVALID_STATUS, ERROR_KIND_BODY, ERROR_KIND_DECODE, ERROR_KIND_BUILDER, ERROR_KIND_REQUEST, ERROR_KIND_FILE_SYSTEM, ERROR_KIND_UNKNOWN};
+use crate::types::{
+    ERROR_KIND_BODY, ERROR_KIND_BUILDER, ERROR_KIND_CONNECTION, ERROR_KIND_DECODE,
+    ERROR_KIND_FILE_SYSTEM, ERROR_KIND_INVALID_STATUS, ERROR_KIND_NONE, ERROR_KIND_REDIRECT,
+    ERROR_KIND_REQUEST, ERROR_KIND_TIMEOUT, ERROR_KIND_UNKNOWN, RequestProgress, RequestStatus,
+    Response,
+};
 use reqwest::Response as ReqwestResponse;
 use std::{
     error::Error as StdError,
@@ -30,11 +35,11 @@ fn analyze_reqwest_error(e: &reqwest::Error) -> (u8, String, Option<String>, Opt
     };
 
     let main_message = e.to_string();
-    
+
     let url = e.url().map(|u| u.to_string());
-    
+
     let source = e.source().map(|s| s.to_string());
-    
+
     let detailed_message = if let Some(ref src) = source {
         format!("{}: {}", main_message, src)
     } else {
@@ -193,12 +198,12 @@ pub async fn process_request(
         Err(e) => {
             // Request error (connection failed, etc.)
             let (error_kind, error_message, error_url, error_source) = analyze_reqwest_error(&e);
-            
+
             let mut progress = progress_info.write().unwrap();
             progress.status = RequestStatus::Error;
             progress.final_response = Some(Response {
                 status: e.status().unwrap_or(reqwest::StatusCode::BAD_REQUEST),
-                version: reqwest::Version::HTTP_11,       // Default to HTTP/1.1 for errors
+                version: reqwest::Version::HTTP_11, // Default to HTTP/1.1 for errors
                 headers: reqwest::header::HeaderMap::new(),
                 body: Err(error_message),
                 error_kind,

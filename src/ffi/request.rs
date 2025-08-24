@@ -234,9 +234,7 @@ pub extern "C" fn request_read_response_version(
 
 /// Get the error kind from a response
 #[unsafe(no_mangle)]
-pub extern "C" fn request_read_error_kind(
-    request_id: RequestId,
-) -> u8 {
+pub extern "C" fn request_read_error_kind(request_id: RequestId) -> u8 {
     let tracker = REQUEST_TRACKER.lock().unwrap();
 
     if let Some(progress_info) = tracker.get(&request_id) {
