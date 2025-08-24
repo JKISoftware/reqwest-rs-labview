@@ -32,3 +32,4 @@ pingora-core = "0.6.0"
 async-trait = "0.1.89"
 tokio = { version = "1.47.1", features = ["macros", "rt-multi-thread"] }
 sfv = "0.14.0"
+rusty-hook = "0.11.2"
