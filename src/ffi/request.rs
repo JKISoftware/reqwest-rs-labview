@@ -120,55 +120,6 @@ pub extern "C" fn request_read_response_body(
     ptr::null_mut() // Return null if request not found or no response yet
 }
 
-/// Get the error message as a C string directly from a request ID
-#[unsafe(no_mangle)]
-pub extern "C" fn request_read_transport_error(
-    request_id: RequestId,
-    num_bytes: *mut u32,
-) -> *mut c_char {
-    if num_bytes.is_null() {
-        return ptr::null_mut();
-    }
-
-    // Get the response info directly from the tracker
-    let tracker = REQUEST_TRACKER.lock().unwrap();
-
-    if let Some(progress_info) = tracker.get(&request_id) {
-        let progress = progress_info.read().unwrap();
-        if let Some(ref response) = progress.final_response {
-            // If there's no error in the response, return null
-            let error_str = match &response.body {
-                Err(error_str) => error_str,
-                Ok(_) => {
-                    unsafe { *num_bytes = 0 };
-                    return ptr::null_mut();
-                }
-            };
-
-            // Calculate size including null terminator
-            let str_len = error_str.len();
-            unsafe { *num_bytes = str_len as u32 };
-
-            // Allocate memory for the string + null terminator
-            let c_str_ptr = unsafe { libc::malloc(str_len + 1) as *mut c_char };
-            if c_str_ptr.is_null() {
-                return ptr::null_mut();
-            }
-
-            // Copy the string and add null terminator
-            unsafe {
-                std::ptr::copy_nonoverlapping(error_str.as_ptr(), c_str_ptr as *mut u8, str_len);
-                *(c_str_ptr.add(str_len)) = 0;
-            }
-
-            return c_str_ptr;
-        }
-    }
-
-    unsafe { *num_bytes = 0 };
-    ptr::null_mut() // Return null if request not found or no response yet
-}
-
 /// Cancel a request
 #[unsafe(no_mangle)]
 pub extern "C" fn request_cancel(request_id: RequestId) -> bool {
@@ -231,22 +182,6 @@ pub extern "C" fn request_read_response_headers(request_id: RequestId) -> *mut H
     ptr::null_mut() // Return null if request not found or no response yet
 }
 
-/// Check if a request has an error (which can then be read with request_read_transport_error)
-#[unsafe(no_mangle)]
-pub extern "C" fn request_has_transport_error(request_id: RequestId) -> bool {
-    // Get the response info
-    let tracker = REQUEST_TRACKER.lock().unwrap();
-
-    if let Some(progress_info) = tracker.get(&request_id) {
-        let progress = progress_info.read().unwrap();
-        if let Some(ref response) = progress.final_response {
-            return response.body.is_err();
-        }
-    }
-
-    false // Return false if request not found or no response yet
-}
-
 /// Get the HTTP version as a string directly from a request ID
 /// Returns a C string like "HTTP/1.1", "HTTP/2", etc. Caller must free the memory.
 #[unsafe(no_mangle)]
@@ -299,7 +234,9 @@ pub extern "C" fn request_read_response_version(
 
 /// Get the error kind from a response
 #[unsafe(no_mangle)]
-pub extern "C" fn request_get_error_kind(request_id: RequestId) -> u8 {
+pub extern "C" fn request_read_error_kind(
+    request_id: RequestId,
+) -> u8 {
     let tracker = REQUEST_TRACKER.lock().unwrap();
 
     if let Some(progress_info) = tracker.get(&request_id) {
@@ -314,7 +251,7 @@ pub extern "C" fn request_get_error_kind(request_id: RequestId) -> u8 {
 
 /// Get the error message with detailed information
 #[unsafe(no_mangle)]
-pub extern "C" fn request_get_error_message(
+pub extern "C" fn request_read_error_message(
     request_id: RequestId,
     buffer: *mut c_char,
     buffer_len: usize,
@@ -344,7 +281,7 @@ pub extern "C" fn request_get_error_message(
 
 /// Get the error URL if available
 #[unsafe(no_mangle)]
-pub extern "C" fn request_get_error_url(
+pub extern "C" fn request_read_error_url(
     request_id: RequestId,
     buffer: *mut c_char,
     buffer_len: usize,
@@ -374,7 +311,7 @@ pub extern "C" fn request_get_error_url(
 
 /// Get the root cause error message
 #[unsafe(no_mangle)]
-pub extern "C" fn request_get_error_source(
+pub extern "C" fn request_read_error_source(
     request_id: RequestId,
     buffer: *mut c_char,
     buffer_len: usize,
@@ -404,7 +341,7 @@ pub extern "C" fn request_get_error_source(
 
 /// Check if response has an error
 #[unsafe(no_mangle)]
-pub extern "C" fn request_response_has_error(request_id: RequestId) -> bool {
+pub extern "C" fn request_has_error(request_id: RequestId) -> bool {
     let tracker = REQUEST_TRACKER.lock().unwrap();
 
     if let Some(progress_info) = tracker.get(&request_id) {
