@@ -296,3 +296,123 @@ pub extern "C" fn request_read_response_version(
     unsafe { *num_bytes = 0 };
     ptr::null_mut() // Return null if request not found or no response yet
 }
+
+/// Get the error kind from a response
+#[unsafe(no_mangle)]
+pub extern "C" fn request_get_error_kind(request_id: RequestId) -> u8 {
+    let tracker = REQUEST_TRACKER.lock().unwrap();
+
+    if let Some(progress_info) = tracker.get(&request_id) {
+        let progress = progress_info.read().unwrap();
+        if let Some(ref response) = progress.final_response {
+            return response.error_kind;
+        }
+    }
+
+    crate::types::ERROR_KIND_NONE
+}
+
+/// Get the error message with detailed information
+#[unsafe(no_mangle)]
+pub extern "C" fn request_get_error_message(
+    request_id: RequestId,
+    buffer: *mut c_char,
+    buffer_len: usize,
+) -> usize {
+    if buffer.is_null() || buffer_len == 0 {
+        return 0;
+    }
+
+    let tracker = REQUEST_TRACKER.lock().unwrap();
+
+    if let Some(progress_info) = tracker.get(&request_id) {
+        let progress = progress_info.read().unwrap();
+        if let Some(ref response) = progress.final_response {
+            if let Err(ref error_msg) = response.body {
+                let msg_len = error_msg.len().min(buffer_len - 1);
+                unsafe {
+                    std::ptr::copy_nonoverlapping(error_msg.as_ptr(), buffer as *mut u8, msg_len);
+                    *buffer.add(msg_len) = 0;
+                }
+                return msg_len;
+            }
+        }
+    }
+
+    0
+}
+
+/// Get the error URL if available
+#[unsafe(no_mangle)]
+pub extern "C" fn request_get_error_url(
+    request_id: RequestId,
+    buffer: *mut c_char,
+    buffer_len: usize,
+) -> usize {
+    if buffer.is_null() || buffer_len == 0 {
+        return 0;
+    }
+
+    let tracker = REQUEST_TRACKER.lock().unwrap();
+
+    if let Some(progress_info) = tracker.get(&request_id) {
+        let progress = progress_info.read().unwrap();
+        if let Some(ref response) = progress.final_response {
+            if let Some(ref url) = response.error_url {
+                let url_len = url.len().min(buffer_len - 1);
+                unsafe {
+                    std::ptr::copy_nonoverlapping(url.as_ptr(), buffer as *mut u8, url_len);
+                    *buffer.add(url_len) = 0;
+                }
+                return url_len;
+            }
+        }
+    }
+
+    0
+}
+
+/// Get the root cause error message
+#[unsafe(no_mangle)]
+pub extern "C" fn request_get_error_source(
+    request_id: RequestId,
+    buffer: *mut c_char,
+    buffer_len: usize,
+) -> usize {
+    if buffer.is_null() || buffer_len == 0 {
+        return 0;
+    }
+
+    let tracker = REQUEST_TRACKER.lock().unwrap();
+
+    if let Some(progress_info) = tracker.get(&request_id) {
+        let progress = progress_info.read().unwrap();
+        if let Some(ref response) = progress.final_response {
+            if let Some(ref source) = response.error_source {
+                let src_len = source.len().min(buffer_len - 1);
+                unsafe {
+                    std::ptr::copy_nonoverlapping(source.as_ptr(), buffer as *mut u8, src_len);
+                    *buffer.add(src_len) = 0;
+                }
+                return src_len;
+            }
+        }
+    }
+
+    0
+}
+
+/// Check if response has an error
+#[unsafe(no_mangle)]
+pub extern "C" fn request_response_has_error(request_id: RequestId) -> bool {
+    let tracker = REQUEST_TRACKER.lock().unwrap();
+
+    if let Some(progress_info) = tracker.get(&request_id) {
+        let progress = progress_info.read().unwrap();
+        if let Some(ref response) = progress.final_response {
+            return response.body.is_err() || response.error_kind != crate::types::ERROR_KIND_NONE;
+        }
+    }
+
+    false
+}

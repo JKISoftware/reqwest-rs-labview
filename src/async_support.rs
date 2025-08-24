@@ -1,11 +1,48 @@
-use crate::types::{RequestProgress, RequestStatus, Response};
+use crate::types::{RequestProgress, RequestStatus, Response, ERROR_KIND_NONE, ERROR_KIND_TIMEOUT, ERROR_KIND_CONNECTION, ERROR_KIND_REDIRECT, ERROR_KIND_INVALID_STATUS, ERROR_KIND_BODY, ERROR_KIND_DECODE, ERROR_KIND_BUILDER, ERROR_KIND_REQUEST, ERROR_KIND_FILE_SYSTEM, ERROR_KIND_UNKNOWN};
 use reqwest::Response as ReqwestResponse;
 use std::{
+    error::Error as StdError,
     fs::File,
     future::Future,
     io::Write,
     sync::{Arc, RwLock},
 };
+
+fn analyze_reqwest_error(e: &reqwest::Error) -> (u8, String, Option<String>, Option<String>) {
+    let error_kind = if e.is_timeout() {
+        ERROR_KIND_TIMEOUT
+    } else if e.is_connect() {
+        ERROR_KIND_CONNECTION
+    } else if e.is_redirect() {
+        ERROR_KIND_REDIRECT
+    } else if e.is_status() {
+        ERROR_KIND_INVALID_STATUS
+    } else if e.is_body() {
+        ERROR_KIND_BODY
+    } else if e.is_decode() {
+        ERROR_KIND_DECODE
+    } else if e.is_builder() {
+        ERROR_KIND_BUILDER
+    } else if e.is_request() {
+        ERROR_KIND_REQUEST
+    } else {
+        ERROR_KIND_UNKNOWN
+    };
+
+    let main_message = e.to_string();
+    
+    let url = e.url().map(|u| u.to_string());
+    
+    let source = e.source().map(|s| s.to_string());
+    
+    let detailed_message = if let Some(ref src) = source {
+        format!("{}: {}", main_message, src)
+    } else {
+        main_message
+    };
+
+    (error_kind, detailed_message, url, source)
+}
 
 // Process a request and handle the response stream within an async context
 pub async fn process_request(
@@ -56,6 +93,9 @@ pub async fn process_request(
                                             version,
                                             headers,
                                             body: Err(format!("File write error: {e}")),
+                                            error_kind: ERROR_KIND_FILE_SYSTEM,
+                                            error_url: None,
+                                            error_source: Some(e.to_string()),
                                         });
                                         return;
                                     }
@@ -74,6 +114,9 @@ pub async fn process_request(
                                         version,
                                         headers,
                                         body: Err(format!("Network error: {e}")),
+                                        error_kind: ERROR_KIND_CONNECTION,
+                                        error_url: None,
+                                        error_source: Some(e.to_string()),
                                     });
                                     return;
                                 }
@@ -88,6 +131,9 @@ pub async fn process_request(
                             version,
                             headers,
                             body: Ok(Vec::new()), // Empty body since it was streamed to file
+                            error_kind: ERROR_KIND_NONE,
+                            error_url: None,
+                            error_source: None,
                         });
                     }
                     Err(e) => {
@@ -99,6 +145,9 @@ pub async fn process_request(
                             version,
                             headers,
                             body: Err(format!("File open error: {e}")),
+                            error_kind: ERROR_KIND_FILE_SYSTEM,
+                            error_url: None,
+                            error_source: Some(e.to_string()),
                         });
                     }
                 }
@@ -119,6 +168,9 @@ pub async fn process_request(
                             version,
                             headers,
                             body: Ok(bytes_vec),
+                            error_kind: ERROR_KIND_NONE,
+                            error_url: None,
+                            error_source: None,
                         });
                     }
                     Err(e) => {
@@ -130,6 +182,9 @@ pub async fn process_request(
                             version,
                             headers,
                             body: Err(format!("Body read error: {e}")),
+                            error_kind: ERROR_KIND_BODY,
+                            error_url: None,
+                            error_source: Some(e.to_string()),
                         });
                     }
                 }
@@ -137,13 +192,18 @@ pub async fn process_request(
         }
         Err(e) => {
             // Request error (connection failed, etc.)
+            let (error_kind, error_message, error_url, error_source) = analyze_reqwest_error(&e);
+            
             let mut progress = progress_info.write().unwrap();
             progress.status = RequestStatus::Error;
             progress.final_response = Some(Response {
-                status: reqwest::StatusCode::BAD_REQUEST, // Default status code for errors
+                status: e.status().unwrap_or(reqwest::StatusCode::BAD_REQUEST),
                 version: reqwest::Version::HTTP_11,       // Default to HTTP/1.1 for errors
                 headers: reqwest::header::HeaderMap::new(),
-                body: Err(format!("Request error: {e}")),
+                body: Err(error_message),
+                error_kind,
+                error_url,
+                error_source,
             });
         }
     }
