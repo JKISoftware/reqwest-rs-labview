@@ -28,10 +28,11 @@ pub use ffi::multipart::{
     multipart_form_create, multipart_form_destroy, multipart_form_read_error_message,
 };
 pub use ffi::request::{
-    request_cancel, request_destroy, request_has_transport_error, request_is_complete,
-    request_read_progress, request_read_received_bytes, request_read_response_body,
-    request_read_response_headers, request_read_response_status, request_read_response_version,
-    request_read_total_bytes, request_read_transport_error,
+    request_cancel, request_destroy, request_has_error, request_is_complete,
+    request_read_error_kind, request_read_error_message, request_read_error_source,
+    request_read_error_url, request_read_progress, request_read_received_bytes,
+    request_read_response_body, request_read_response_headers, request_read_response_status,
+    request_read_response_version, request_read_total_bytes,
 };
 pub use ffi::request_builder::{
     request_builder_basic_auth, request_builder_bearer_auth, request_builder_body,

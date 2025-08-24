@@ -71,6 +71,9 @@ pub struct Response {
     pub version: Version,
     pub headers: HeaderMap,
     pub body: Result<Vec<u8>, String>,
+    pub error_kind: u8,
+    pub error_url: Option<String>,
+    pub error_source: Option<String>,
 }
 
 /// HTTP method constants
@@ -93,3 +96,16 @@ pub struct MultipartFormWrapper {
     pub form: Option<reqwest::multipart::Form>,
     pub error_message: Option<String>,
 }
+
+/// Error kind constants for FFI
+pub const ERROR_KIND_NONE: u8 = 0;
+pub const ERROR_KIND_TIMEOUT: u8 = 1;
+pub const ERROR_KIND_CONNECTION: u8 = 2;
+pub const ERROR_KIND_REDIRECT: u8 = 3;
+pub const ERROR_KIND_INVALID_STATUS: u8 = 4;
+pub const ERROR_KIND_BODY: u8 = 5;
+pub const ERROR_KIND_DECODE: u8 = 6;
+pub const ERROR_KIND_BUILDER: u8 = 7;
+pub const ERROR_KIND_REQUEST: u8 = 8;
+pub const ERROR_KIND_FILE_SYSTEM: u8 = 9;
+pub const ERROR_KIND_UNKNOWN: u8 = 10;

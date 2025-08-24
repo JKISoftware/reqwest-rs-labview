@@ -41,7 +41,7 @@ pub fn wait_for_request_with_retry(request_id: usize, max_retries: u64) -> (u16,
 
             // Get error message if available for debugging
             let mut error_len: u32 = 0;
-            let error_ptr = request_read_transport_error(request_id, &mut error_len);
+            let error_ptr = request_read_error_message(request_id, &mut error_len);
             let error_msg = if !error_ptr.is_null() && error_len > 0 {
                 let error_str = unsafe {
                     let error_slice =
