@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Raise error and message if not running on macOS/Darwin
+if [[ "$OSTYPE" != "darwin"* ]]; then
+  echo "Error: This script can only be run on macOS."
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
