@@ -24,7 +24,7 @@ build_linux:
     Copy-Item -Force -Path "target\x86_64-unknown-linux-gnu\release\*.so" -Destination "lv_src\lv_reqwest_64.so"
 
 build_mac:
-    ./mac_build.sh
+    ./scripts/mac_build.sh
 
 build:
     just build_windows

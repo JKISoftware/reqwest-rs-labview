@@ -1,12 +1,13 @@
 #!/bin/bash
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+WORKSPACE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-LV_SOURCE_DIR=$SCRIPT_DIR/lv_src
+LV_SOURCE_DIR=$WORKSPACE_DIR/lv_src
 
 BUILD_TYPE=release
 SHARED_LIBARY_NAME=libreqwest_dll.dylib
-BUILD_OUTPUT_DIR=$SCRIPT_DIR/target/$BUILD_TYPE
+BUILD_OUTPUT_DIR=$WORKSPACE_DIR/target/$BUILD_TYPE
 
 # # build shared library with Cargo
 # cargo build --$BUILD_TYPE
