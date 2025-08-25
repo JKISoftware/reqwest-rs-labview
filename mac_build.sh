@@ -11,3 +11,11 @@ cargo build --$BUILD_TYPE
 FRAMEWORK_NAME=lv_reqwest_64
 
 ./bundle_framework.sh
+
+# Copy .framework into lv_src dir, overwriting existing
+rm -rf "lv_src/$FRAMEWORK_NAME.framework"
+cp -R "target/$BUILD_TYPE/$FRAMEWORK_NAME.framework" "lv_src/"
+
+# Zip the framework, overwriting existing
+rm -f "lv_src/$FRAMEWORK_NAME.zip"
+zip -r "lv_src/$FRAMEWORK_NAME.zip" "lv_src/$FRAMEWORK_NAME.framework"
