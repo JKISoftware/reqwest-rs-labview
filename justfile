@@ -1,5 +1,5 @@
 # use PowerShell instead of sh:
-set shell := ["pwsh", "-c"]
+set windows-shell := ["pwsh", "-c"]
 
 alias   b   := build
 alias   d   := develop
@@ -22,6 +22,9 @@ build_windows:
 build_linux:
     cargo zigbuild --target=x86_64-unknown-linux-gnu --release
     Copy-Item -Force -Path "target\x86_64-unknown-linux-gnu\release\*.so" -Destination "lv_src\lv_reqwest_64.so"
+
+build_mac:
+    ./mac_build.sh
 
 build:
     just build_windows
